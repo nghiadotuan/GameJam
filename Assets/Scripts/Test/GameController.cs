@@ -135,36 +135,50 @@ public class GameController : MonoBehaviour
         }
     }
 
-    private async UniTaskVoid RippleExplosionTask(PackBalls pack, Vector3 clickPoint)
+
+        private async UniTaskVoid RippleExplosionTask(PackBalls pack, Vector3 clickPoint)
     {
+        Vector3 centerPos = SmoothModelRotator.Instance.transform.position;
+    
+        // 1. Lấy tất cả bóng ra
         var allBalls = pack.balls.Where(b => b != null).ToList();
-        Vector3 packCenter = pack.transform.position; // Gốc của transform cha
         pack.balls.Clear();
 
-        float maxRadius = config.clickExplosionRadius; 
+        // 2. CHÌA KHÓA: Sắp xếp list bóng từ GẦN ĐIỂM CLICK NHẤT đến xa nhất
+        // Việc này đảm bảo hiệu ứng nhả bóng lan tỏa từ tâm ra ngoài thành dạng gợn sóng
+        var sortedBalls = allBalls.OrderBy(b => Vector3.Distance(b.transform.position, clickPoint)).ToList();
 
-        foreach (GameObject ballObj in allBalls)
+        // Lực nổ tối đa tại tâm click (bạn có thể tuỳ chỉnh con số này lên xuống)
+        float maxForceMultiplier = 0.15f; 
+        
+        foreach (GameObject ballObj in sortedBalls)
         {
             Ball b = ballObj.GetComponent<Ball>();
             if (b != null)
             {
-                // 1. Tính hướng từ GỐC CHA đến QUẢ BÓNG
-                Vector3 dirFromCenter = (ballObj.transform.position - packCenter).normalized;
+                // A. Tính vector hướng nổ: Từ điểm click văng ra ngoài, hơi chếch từ dưới lên
+                Vector3 blastDir = (ballObj.transform.position - clickPoint).normalized;
+                blastDir.y += 0.5f; // Luôn nhích hướng lên trên một chút để tạo vòng cung đẹp
+                blastDir = blastDir.normalized;
 
-                // 2. Tính hệ số lực dựa trên khoảng cách từ QUẢ BÓNG đến ĐIỂM CLICK
+                // B. Tính % sức mạnh: Càng xa điểm click % càng giảm dần về 0
                 float distToClick = Vector3.Distance(ballObj.transform.position, clickPoint);
+                float forcePercent = Mathf.Clamp01(1f - (distToClick / config.clickExplosionRadius));
             
-                // forcePercent: gần điểm click = 1.0 (sóng cao nhất), xa dần = 0.1
-                float forcePercent = Mathf.Clamp01(1f - (distToClick / maxRadius));
-                forcePercent = Mathf.Max(forcePercent, 0.1f); 
+                // C. Vector lực hoàn chỉnh
+                Vector3 finalForce = blastDir * (maxForceMultiplier * forcePercent);
 
-                // Kích hoạt đồng thời
-                b.BurstAndFall(dirFromCenter, forcePercent).Forget();
+                // D. Gắn Rigidbody & Áp Lực
+                b.ExplodeSimple(finalForce);
+                
+                // Nghỉ 1 frame giữa MỖI quả bóng để tách đợt nổ và tạo gợn sóng hoàn mỹ
+                await UniTask.Yield(); 
             }
         }
-
-        if (pack != null) Destroy(pack.gameObject, 0.5f);
+    
+      //  if (pack != null) Destroy(pack.gameObject, 0.5f);
     }
+
 
     private void ExecuteDisablePack(Vector2 screenPos)
     {
