@@ -53,6 +53,7 @@ public class FastTool : MonoBehaviour
     
         foreach (var mr in renderers)
         {
+            mr.gameObject.layer = 3;
             if (mr.gameObject.GetComponent<Ball>() == null)
                 mr.gameObject.AddComponent<Ball>();
             
