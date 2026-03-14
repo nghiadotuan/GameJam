@@ -9,6 +9,7 @@ using UnityEngine;
 public class Ball : MonoBehaviour
 {
     private bool _isExploded = false;
+    private static float _nextShootTime = 0f;
 
     public void ExplodeSimple(Vector3 force)
     {
@@ -109,6 +110,9 @@ public class Ball : MonoBehaviour
         float speed = GameConfig.Instance.pipeMoveSpeed;
         int currentNodeIndex = 0;
 
+        // ==========================================
+        // GIAI ĐOẠN 1: TRƯỢT TRONG ỐNG
+        // ==========================================
         while (currentNodeIndex < nodes.Count && this != null && gameObject != null)
         {
             Transform targetNode = nodes[currentNodeIndex];
@@ -127,6 +131,74 @@ public class Ball : MonoBehaviour
             }
 
             currentNodeIndex++;
+        }
+
+        // ==========================================
+        // GIAI ĐOẠN 2: XẾP HÀNG CHỜ BẮN (TẠO NHỊP BỤP BỤP)
+        // ==========================================
+        if (this == null || gameObject == null) return;
+
+        // 1. Chốt thời gian bắn cho quả bóng NÀY
+        float myShootTime;
+        if (Time.time > _nextShootTime)
+        {
+            // Nếu họng súng đang rảnh -> Bắn luôn
+            myShootTime = Time.time;
+        }
+        else
+        {
+            // Nếu đang kẹt xe -> Xếp hàng sau thời gian của quả trước đó
+            myShootTime = _nextShootTime;
+        }
+
+        // Tốc độ nhả đạn (Ví dụ 0.15s sẽ ra nhịp bụp bụp rất đã tai. Bạn có thể cho vào GameConfig)
+        float shootInterval = 0.1f;
+
+        // Cập nhật lại lịch bắn cho quả bóng tới sau
+        _nextShootTime = myShootTime + shootInterval;
+
+        // 2. Ép quả bóng này đứng chờ ở cửa ống cho tới lượt
+        float waitDuration = myShootTime - Time.time;
+        if (waitDuration > 0)
+        {
+            // Dùng TimeSpan để Delay an toàn với UniTask
+            await UniTask.Delay(TimeSpan.FromSeconds(waitDuration), ignoreTimeScale: false, cancellationToken: this.GetCancellationTokenOnDestroy());
+        }
+
+        // Kiểm tra an toàn trước khi bắn (phòng trường hợp đang đợi thì bóng bị xóa)
+        if (this == null || gameObject == null) return;
+
+        // ==========================================
+        // GIAI ĐOẠN 3: BẮN VÒNG CUNG VÀO SHOVE ĐẦU TIÊN
+        // ==========================================
+        if (ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
+        {
+            ShoveMovement targetShove = ShoveContainer.Instance.shoveList[0];
+
+            if (targetShove != null)
+            {
+                Vector3 startPos = transform.position;
+                Vector3 endPos = targetShove.transform.position;
+
+                // Lệch điểm đích đi một xíu tạo cảm giác bóng rơi lộn xộn tự nhiên trong thùng (Tùy chọn)
+               // endPos += UnityEngine.Random.insideUnitSphere * 0.15f;
+                endPos.y = targetShove.transform.position.y; // Giữ nguyên mặt phẳng đáy của thùng
+
+                float flyDuration = 0.4f; // Bay nhanh dứt khoát
+                float arcHeight = .1f; // Độ cao vòng cung
+
+                // Thực thi bắn
+                await transform.ShootArcAsync(startPos, endPos, flyDuration, arcHeight, this.GetCancellationTokenOnDestroy());
+
+                if (this != null && gameObject != null && targetShove != null)
+                {
+                    transform.SetParent(targetShove.transform);
+                }
+            }
+        }
+        else
+        {
+            ///Destroy(gameObject);
         }
     }
 

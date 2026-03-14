@@ -31224,7 +31224,7 @@ MonoBehaviour:
   - {fileID: 1478595041}
   - {fileID: 1282401765}
   - {fileID: 1600192238}
-  currentState: 0
+  currentState: 1
 --- !u!4 &1113244211
 Transform:
   m_ObjectHideFlags: 0
