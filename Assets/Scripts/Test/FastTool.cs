@@ -44,4 +44,21 @@ public class FastTool : MonoBehaviour
 
         Debug.Log($"[FastTool] Hoàn tất! Đã thêm {count} Sphere Colliders vào các object có MeshRenderer.");
     }
+
+    [Button]
+    public  void PrepareBalls()
+    {
+        
+        MeshRenderer[] renderers = transform.GetComponentsInChildren<MeshRenderer>(true);
+    
+        foreach (var mr in renderers)
+        {
+            if (mr.gameObject.GetComponent<Ball>() == null)
+                mr.gameObject.AddComponent<Ball>();
+            
+            if (mr.gameObject.GetComponent<SphereCollider>() == null)
+                mr.gameObject.AddComponent<SphereCollider>();
+        }
+        Debug.Log("Đã gán Script Ball và Collider thành công!");
+    }
 }

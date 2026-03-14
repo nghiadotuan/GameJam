@@ -100,7 +100,52 @@ public class GameController : MonoBehaviour
         if (Physics.Raycast(ray, out RaycastHit hit, 100f, ballLayer))
         {
             PackBalls pack = hit.collider.GetComponentInParent<PackBalls>();
-            if (pack != null) Debug.Log($"<color=yellow>[Click]</color> Pack: <b>{pack.name}</b>");
+    
+            if (pack != null)
+            {
+                Vector3 explosionPos = hit.point;
+            
+                // THÔNG SỐ NỔ NHẸ (Bạn có thể chỉnh ở đây)
+                float explosionRadius = 2f; 
+                float explosionForce = 20f; // Mức 50f là rất nhẹ, chỉ đủ rã khối
+                float upwardsModifier = 0.3f; // Đẩy nhẹ lên trên để rụng tự nhiên
+
+                // Chuyển List sang Array để duyệt an toàn
+                GameObject[] ballArray = pack.balls.ToArray();
+
+                // BƯỚC 1: Add Rigidbody cho TOÀN BỘ bóng trước
+                foreach (GameObject ballObj in ballArray)
+                {
+                    if (ballObj != null)
+                    {
+                        Ball ballScript = ballObj.GetComponent<Ball>();
+                        if (ballScript != null)
+                        {
+                            ballScript.PreparePhysics(); // Gọi hàm mới đã sửa ở Ball.cs
+                        }
+                    }
+                }
+
+                // BƯỚC 2: Tác động lực nổ sau khi tất cả đã có vật lý
+                foreach (GameObject ballObj in ballArray)
+                {
+                    if (ballObj != null)
+                    {
+                        Rigidbody rb = ballObj.GetComponent<Rigidbody>();
+                        if (rb != null)
+                        {
+                            // Hàm chuẩn của Unity để nổ khối mượt mà
+                            rb.AddExplosionForce(explosionForce, explosionPos, explosionRadius, upwardsModifier);
+                        }
+                    }
+                }
+
+                // Xóa danh sách và hủy cha
+                pack.balls.Clear();
+                Destroy(pack.gameObject, 3.5f);
+            
+                Debug.Log($"<color=orange>[Explosion]</color> Đã rã khối: {pack.name}");
+            }
         }
     }
 
@@ -110,7 +155,43 @@ public class GameController : MonoBehaviour
         if (Physics.Raycast(ray, out RaycastHit hit, 100f, ballLayer))
         {
             _currentDisabledPack = hit.collider.GetComponentInParent<PackBalls>();
-            if (_currentDisabledPack != null) _currentDisabledPack.gameObject.SetActive(false);
+            if (_currentDisabledPack != null)
+            {
+                Vector3 explosionPos = hit.point;
+                // Bán kính nổ nên bao trùm toàn bộ Pack (ví dụ 5m)
+                float explosionRadius = 5f; 
+                // LỰC CỰC NHẸ: Thử mức 50f đến 100f (vì ExplosionForce dùng đơn vị khác AddForce)
+                float explosionForce = 50f; 
+
+                // Bước 1: Kích hoạt Rigidbody cho TOÀN BỘ bóng trong Pack trước
+                GameObject[] ballArray = _currentDisabledPack.balls.ToArray();
+                foreach (GameObject ballObj in ballArray)
+                {
+                    if (ballObj != null)
+                    {
+                        Ball b = ballObj.GetComponent<Ball>();
+                        if (b != null) b.PreparePhysics();
+                    }
+                }
+
+                // Bước 2: Tác động lực nổ đồng loạt sau khi tất cả đã có Rigidbody
+                foreach (GameObject ballObj in ballArray)
+                {
+                    if (ballObj != null)
+                    {
+                        Rigidbody rb = ballObj.GetComponent<Rigidbody>();
+                        if (rb != null)
+                        {
+                            // AddExplosionForce(lực, tâm nổ, bán kính, lực nâng lên)
+                            // 0.5f ở cuối giúp bóng hơi nảy lên rồi mới rơi xuống
+                            rb.AddExplosionForce(explosionForce, explosionPos, explosionRadius, 0.5f);
+                        }
+                    }
+                }
+            
+                _currentDisabledPack.balls.Clear();
+                Destroy(_currentDisabledPack.gameObject, 3.5f);
+            }
         }
     }
 
