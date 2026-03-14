@@ -18733,10 +18733,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraZoomController
   virtualCamera: {fileID: 375801998}
-  zoomSpeed: 5
-  minDistance: 1
-  maxDistance: 50
-  smoothSpeed: 10
+  config: {fileID: 11400000, guid: 6235cb2746c944f198ed1912c898f793, type: 2}
 --- !u!114 &713025887
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -39432,8 +39429,7 @@ MonoBehaviour:
   ballLayer:
     serializedVersion: 2
     m_Bits: 8
-  longPressDuration: 0.2
-  moveThreshold: 10
+  config: {fileID: 11400000, guid: 6235cb2746c944f198ed1912c898f793, type: 2}
 --- !u!4 &2087355803
 Transform:
   m_ObjectHideFlags: 0
