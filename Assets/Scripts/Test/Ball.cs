@@ -5,12 +5,10 @@ using LitMotion;
 using LitMotion.Extensions;
 using Sirenix.OdinInspector;
 using UnityEngine;
-using UnityEngine.Splines;
 
 public class Ball : MonoBehaviour
 {
     private bool _isExploded = false;
-
 
     public void ExplodeSimple(Vector3 force)
     {
@@ -21,29 +19,24 @@ public class Ball : MonoBehaviour
         transform.SetParent(null, true);
 
         // 1. Chút nhiễu tọa độ để dãn Collider
-        transform.position += UnityEngine.Random.insideUnitSphere * 0.005f; // Chú ý: Vì bi có 0.02, offset chỉ nên rất nhỏ 0.005
+        transform.position += UnityEngine.Random.insideUnitSphere * 0.005f;
 
         // Bật Rigidbody
         Rigidbody rb = gameObject.AddComponent<Rigidbody>();
 
-        // 2. Chỉnh Mass và Drag (QUAN TRỌNG)
-        // Vì vật quá nhỏ, tăng nhẹ Mass để giảm sốc vật lý
-        rb.mass = 5f;
+        rb.mass = 1f;
+        rb.linearDamping = 3f; // Tăng nhẹ cản không khí để bóng bay lơ lửng hơn
+        rb.angularDamping = 5f;
+        rb.maxDepenetrationVelocity = 0.1f;
 
-        // Cản không khí cực cao để tạo cảm giác rụng "đầm" (tựa con xúc xắc lăn dưới mặt bàn)
-        rb.linearDamping = 15f;
-        rb.angularDamping = 10f; // Hãm lực xoay 
+        // CHÌA KHÓA: Tắt trọng lực mặc định của Trái Đất đi!
+        rb.useGravity = false;
 
-        // Hạn chế tuyệt đối lực nẩy Depenetration của Unity
-        rb.maxDepenetrationVelocity = 0.05f; // Rất nhỏ để hợp với size 0.02
+        // Ép lực văng nổ
+        rb.AddForce(force, ForceMode.Impulse);
 
-        // Tuỳ ý: Bổ sung 1 lực hút tĩnh xuống lòng đất (Bởi vì ta đã khoá bằng Damping 15f ở trên)
-         rb.AddForce(Vector3.down * 40f, ForceMode.Acceleration);
-        // THÊM DÒNG NÀY: Bắt đầu theo dõi độ cao ngầm
         MonitorHeightAndRemovePhysics().Forget();
     }
-
-    // Tác vụ chạy ngầm kiểm tra độ cao mỗi frame
 
     private async UniTaskVoid MonitorHeightAndRemovePhysics()
     {
@@ -56,37 +49,34 @@ public class Ball : MonoBehaviour
                 Transform target = GameController.Instance.disablePhysicsTransform;
 
                 // ==========================================
-                // 1. TẠO LỰC HÚT VẬT LÝ NHẸ NHÀNG VỀ TÂM LỖ
+                // 1. TRỌNG LỰC NHÂN TẠO & LỰC HÚT BÙ TRỪ
                 // ==========================================
                 if (rb != null)
                 {
-                    // Chỉ tính toán hướng hút trên mặt phẳng ngang (X và Z), bỏ qua Y để bóng rơi tự nhiên
-                    Vector3 targetPos = new Vector3(target.position.x, transform.position.y, target.position.z);
+                    // A. Trọng lực nhân tạo (rơi chậm bồng bềnh)
+                    rb.AddForce(Vector3.down * 3f, ForceMode.Acceleration);
 
-                    // Khoảng cách ngang từ bóng đến tâm lỗ
-                    float horizontalDistance = Vector3.Distance(transform.position, targetPos);
-
-                    // Chỉ bắt đầu hút khi bóng rơi vào gần khu vực phễu (ví dụ cách tâm lỗ < 2 đơn vị)
-                    // và độ cao Y của bóng đang gần bằng miệng phễu (tránh hút bóng khi nó đang bay tít trên cao)
-                    if (horizontalDistance > 0.05f && transform.position.y < target.position.y + .5f)
+                    // B. LOGIC MỚI: Check trực tiếp trị tuyệt đối X của quả bóng
+                    if (Mathf.Abs(transform.position.x) > 0.3f)
                     {
-                        Vector3 pullDirection = (targetPos - transform.position).normalized;
+                        // Hướng kéo vẫn nhắm về cái lỗ để bóng rơi chuẩn vào tâm
+                        Vector3 directionToHole = (target.position - transform.position).normalized;
 
-                        // Chỉnh lực này nhỏ thôi (ví dụ 1f - 3f) để nó lăn từ từ tạo cảm giác tự nhiên
-                        float pullForce = 2f;
+                        // Lực đẩy nhẹ (bạn có thể tinh chỉnh số này)
+                        float gentlePullForce = 3f;
 
-                        // Dùng ForceMode.Force để duy trì gia tốc nhẹ nhàng
-                        rb.AddForce(pullDirection * pullForce);
+                        rb.AddForce(directionToHole * gentlePullForce, ForceMode.Acceleration);
                     }
                 }
 
                 // ==========================================
                 // 2. LOGIC KIỂM TRA ĐỂ CHUI VÀO ỐNG
                 // ==========================================
+                // Khoảng cách thực tế từ bóng đến lỗ để quyết định việc tước vật lý
                 float deltaX = Mathf.Abs(transform.position.x - target.position.x);
 
-                // Nếu lọt xuống dưới Y và X nằm ngay sát tâm lỗ (khe hẹp 0.1f)
-                if (transform.position.y < target.position.y+.1 && deltaX < .68f)
+                // Nếu lọt xuống dưới Y và X nằm ngay sát tâm lỗ
+                if (transform.position.y < target.position.y + 0.1f && deltaX < 0.68f)
                 {
                     // Xóa vật lý
                     if (rb != null) Destroy(rb);
@@ -98,62 +88,72 @@ public class Ball : MonoBehaviour
                     MoveAlongTransformListTask().Forget();
 
                     // Thu nhỏ bóng
-                    LMotion.Create(Vector3.one, Vector3.one * 0.5f, 1f)
+                    LMotion.Create(Vector3.one, Vector3.one * 0.86f, .5f)
                         .WithEase(Ease.Linear)
-                        .WithDelay(1)
+                        .WithDelay(0.1f)
                         .BindToLocalScale(transform).AddTo(GameController.Instance);
 
                     break; // Dừng vòng lặp check độ cao
                 }
             }
 
-            // ĐÃ SỬA: Chuyển sang FixedUpdate vì có dùng AddForce để vật lý chạy chuẩn xác
             await UniTask.Yield(PlayerLoopTiming.FixedUpdate);
         }
     }
 
     private async UniTaskVoid MoveAlongTransformListTask()
     {
-        // Kiểm tra danh sách Node có hợp lệ không
-        if (GameController.Instance == null || GameController.Instance.pipeNodes == null || GameController.Instance.pipeNodes.Count == 0)
-        {
-            Debug.LogWarning("Chưa gán List Transform đường đi cho GameController!");
-            return;
-        }
+        if (GameController.Instance == null || GameController.Instance.pipeNodes == null || GameController.Instance.pipeNodes.Count == 0) return;
 
         List<Transform> nodes = GameController.Instance.pipeNodes;
         float speed = GameConfig.Instance.pipeMoveSpeed;
         int currentNodeIndex = 0;
 
-        // Lặp qua từng Transform trong danh sách
         while (currentNodeIndex < nodes.Count && this != null && gameObject != null)
         {
             Transform targetNode = nodes[currentNodeIndex];
-
-            // Đề phòng trường hợp một Node vô tình bị xóa trên Scene
             if (targetNode == null)
             {
                 currentNodeIndex++;
                 continue;
             }
 
-            // Lấy trực tiếp tọa độ World của Transform
             Vector3 targetWorldPos = targetNode.position;
 
-            // Di chuyển quả bóng đến vị trí đó
             while (this != null && gameObject != null && Vector3.Distance(transform.position, targetWorldPos) > 0.001f)
             {
-                transform.position = Vector3.MoveTowards(
-                    transform.position,
-                    targetWorldPos,
-                    speed * Time.deltaTime
-                );
-
+                transform.position = Vector3.MoveTowards(transform.position, targetWorldPos, speed * Time.deltaTime);
                 await UniTask.Yield(PlayerLoopTiming.Update);
             }
 
-            // Đã đến đích của Node hiện tại, tăng index để đi tới Node tiếp theo
             currentNodeIndex++;
+        }
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        // Kiểm tra xem vật chạm vào có đúng là viền phễu không
+        if (collision.gameObject.CompareTag("FunnelWall"))
+        {
+            Rigidbody rb = GetComponent<Rigidbody>();
+
+            // Đảm bảo bóng vẫn còn vật lý và đích đến vẫn tồn tại
+            if (rb != null && GameController.Instance != null && GameController.Instance.disablePhysicsTransform != null)
+            {
+                Transform target = GameController.Instance.disablePhysicsTransform;
+
+                // 1. Lấy hướng vector từ vị trí hiện tại của bóng chĩa thẳng về tâm lỗ
+                Vector3 directionToHole = (target.position - transform.position).normalized;
+
+                // Tùy chọn: Nếu bạn không muốn nó bị ép xuống/tâng lên quá mạnh, có thể triệt tiêu trục Y
+                // directionToHole.y = 0; 
+                // directionToHole = directionToHole.normalized;
+
+                // 2. Lực đẩy lùa bóng về tâm. 
+                // Dùng ForceMode.Acceleration để tạo lực đẩy liên tục mượt mà chừng nào bóng còn cọ xát vào viền
+                float edgePushForce = 8f;
+                rb.AddForce(directionToHole * edgePushForce, ForceMode.Acceleration);
+            }
         }
     }
 }
