@@ -7,72 +7,55 @@ public class Ball : MonoBehaviour
 {
     private bool _isExploded = false;
 
-    /// <summary>
-    /// Animate ball ra ngoài theo hướng từ explosionCenter bằng LitMotion,
-    /// sau khi animation hoàn tất mới add Rigidbody để ball rơi xuống tự nhiên.
-    /// </summary>
-    public async UniTask BurstThenFall(Vector3 explosionCenter)
+    public async UniTask BurstAndFall(Vector3 explosionCenter, float forcePercent)
     {
         if (_isExploded) return;
         _isExploded = true;
 
         GameConfig config = GameConfig.Instance;
-
-        // Tách khỏi parent ngay để tránh kế thừa transform từ Pack đang xoay
         transform.SetParent(null, true);
 
-        // Tính hướng burst ra ngoài từ tâm nổ
-        Vector3 dir = transform.position - explosionCenter;
-        if (dir.sqrMagnitude < Mathf.Epsilon) dir = Random.onUnitSphere;
-        dir.Normalize();
+        Vector3 dir = (transform.position - explosionCenter).normalized;
         dir.y += config.burstUpward;
         dir.Normalize();
 
         Vector3 startPos = transform.position;
-        Vector3 targetPos = startPos + dir * config.burstDistance;
 
-        // Animate position ra ngoài, await hoàn tất rồi mới add Rigidbody
-        await LMotion.Create(startPos, targetPos, config.burstDuration)
+        // LỰC BIẾN THIÊN: Quả gần bung xa, quả xa bung gần
+        float currentBurstDist = config.burstDistance * forcePercent;
+        Vector3 burstTarget = startPos + dir * currentBurstDist;
+
+        // --- GIAI ĐOẠN 1: BURST ---
+        await LMotion.Create(startPos, burstTarget, config.burstDuration)
             .WithEase(Ease.OutQuad)
             .BindToPosition(transform)
             .ToUniTask();
 
         if (this == null || gameObject == null) return;
 
-        // Add Rigidbody sau animation để ball rơi tự nhiên theo gravity
-        Rigidbody rb = gameObject.AddComponent<Rigidbody>();
-        rb.mass = config.ballMass;
-        rb.linearDamping = config.ballLinearDamping;
-        rb.angularDamping = config.ballAngularDamping;
-        rb.interpolation = RigidbodyInterpolation.Interpolate;
-        rb.maxDepenetrationVelocity = config.ballMaxDepenetrationVelocity;
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
+        // --- GIAI ĐOẠN 2: FALL ---
+        Vector3 pos = transform.position;
 
-        Destroy(gameObject, config.ballAutoDestroyDelay);
-    }
+        // Vận tốc cũng biến thiên theo lực nổ
+        float currentHorizontalSpeed = config.fallHorizontalSpeed * forcePercent;
+        Vector3 horizontalVel = new Vector3(dir.x, 0f, dir.z) * currentHorizontalSpeed;
+        float velocityY = config.fallInitialUpVelocity * forcePercent;
 
-    /// <summary>
-    /// Kích hoạt vật lý ngay lập tức không có animation (dùng cho hold explosion).
-    /// </summary>
-    public void PreparePhysics()
-    {
-        if (_isExploded) return;
-        _isExploded = true;
+        float elapsed = 0f;
+        while (this != null && elapsed < config.fallMaxDuration)
+        {
+            float dt = Time.deltaTime;
+            elapsed += dt;
 
-        GameConfig config = GameConfig.Instance;
+            velocityY += config.fakeGravity * dt;
+            pos += horizontalVel * dt;
+            pos.y += velocityY * dt;
+            transform.position = pos;
 
-        transform.SetParent(null, true);
+            if (pos.y < -15f) break;
+            await UniTask.Yield(PlayerLoopTiming.Update);
+        }
 
-        Rigidbody rb = gameObject.AddComponent<Rigidbody>();
-        rb.mass = config.ballMass;
-        rb.linearDamping = config.ballLinearDamping;
-        rb.angularDamping = config.ballAngularDamping;
-        rb.interpolation = RigidbodyInterpolation.Interpolate;
-        rb.maxDepenetrationVelocity = config.ballMaxDepenetrationVelocity;
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-
-        Destroy(gameObject, config.ballAutoDestroyDelay);
+        if (this != null) Destroy(gameObject);
     }
 }

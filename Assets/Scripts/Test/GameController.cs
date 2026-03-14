@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
@@ -136,29 +137,32 @@ public class GameController : MonoBehaviour
 
     private async UniTaskVoid RippleExplosionTask(PackBalls pack, Vector3 explosionPos)
     {
-        // Sắp xếp bóng từ gần tâm nổ đến xa nhất để tạo hiệu ứng lan sóng
-        var sortedBalls = pack.balls
-            .Where(b => b != null)
-            .OrderBy(b => Vector3.Distance(b.transform.position, explosionPos))
-            .ToList();
-
+        // Lấy danh sách bóng (không cần sắp xếp nữa vì bung đồng thời)
+        var allBalls = pack.balls.Where(b => b != null).ToList();
         pack.balls.Clear();
 
-        foreach (GameObject ballObj in sortedBalls)
+        // Bán kính ảnh hưởng tối đa (những quả ngoài tầm này sẽ bung cực nhẹ)
+        float maxRadius = config.clickExplosionRadius; 
+
+        foreach (GameObject ballObj in allBalls)
         {
-            if (ballObj == null) continue;
+            Ball b = ballObj.GetComponent<Ball>();
+            if (b != null)
+            {
+                // Tính khoảng cách từ bóng đến tâm click
+                float dist = Vector3.Distance(ballObj.transform.position, explosionPos);
+            
+                // Tính hệ số lực: Gần tâm = 1.0, Xa tâm (>= maxRadius) = 0.1
+                // Dùng AnimationCurve ở đây nếu muốn tinh chỉnh mượt hơn
+                float forcePercent = Mathf.Clamp01(1f - (dist / maxRadius));
+                forcePercent = Mathf.Max(forcePercent, 0.1f); // Đảm bảo quả ở xa vẫn nhích nhẹ
 
-            Ball ballScript = ballObj.GetComponent<Ball>();
-            if (ballScript == null) continue;
-
-            // Fire-and-forget: mỗi ball tự animate rồi tự add Rigidbody sau khi xong
-            ballScript.BurstThenFall(explosionPos).Forget();
-
-            // Delay giữa các ball để tạo hiệu ứng lan sóng từ tâm ra ngoài
-            await UniTask.Delay(config.clickRippleDelayPerBallMs);
+                // Kích hoạt đồng thời, truyền thêm hệ số lực vào
+                b.BurstAndFall(explosionPos, forcePercent).Forget();
+            }
         }
 
-        if (pack != null) Destroy(pack.gameObject, config.burstDuration + config.ballAutoDestroyDelay);
+        if (pack != null) Destroy(pack.gameObject, 5f);
     }
 
     private void ExecuteDisablePack(Vector2 screenPos)
@@ -169,43 +173,13 @@ public class GameController : MonoBehaviour
             _currentDisabledPack = hit.collider.GetComponentInParent<PackBalls>();
             if (_currentDisabledPack != null)
             {
-                Vector3 explosionPos = hit.point;
-                float explosionRadius = config.holdExplosionRadius;
-                float maxSpeed = config.holdMaxSpeed;
+                // Thay vì tự viết logic nổ ở đây, hãy dùng chung logic Ripple
+                // Điều này đảm bảo hiệu ứng bung/rơi đồng nhất trong toàn bộ game
+                RippleExplosionTask(_currentDisabledPack, hit.point).Forget();
 
-                // Bước 1: Kích hoạt Rigidbody cho TOÀN BỘ bóng trong Pack trước
-                GameObject[] ballArray = _currentDisabledPack.balls.ToArray();
-                foreach (GameObject ballObj in ballArray)
-                {
-                    if (ballObj != null)
-                    {
-                        Ball b = ballObj.GetComponent<Ball>();
-                        if (b != null) b.PreparePhysics();
-                    }
-                }
-
-                // Bước 2: Set velocity trực tiếp, có giới hạn tốc độ tối đa
-                foreach (GameObject ballObj in ballArray)
-                {
-                    if (ballObj != null)
-                    {
-                        Rigidbody rb = ballObj.GetComponent<Rigidbody>();
-                        if (rb != null)
-                        {
-                            Vector3 dir = (ballObj.transform.position - explosionPos);
-                            float distance = dir.magnitude;
-                            if (distance < Mathf.Epsilon) dir = Random.onUnitSphere;
-                            dir.Normalize();
-                            dir.y += config.holdUpwardsModifier;
-
-                            float falloff = Mathf.Clamp01(1f - distance / explosionRadius);
-                            rb.linearVelocity = dir * (maxSpeed * falloff);
-                        }
-                    }
-                }
-
-                _currentDisabledPack.balls.Clear();
-                Destroy(_currentDisabledPack.gameObject, 3.5f);
+                // Đặt về null để tránh việc EnableCurrentPack() gọi nhầm SetActive(true) 
+                // vào một Pack đã bị phá hủy
+                _currentDisabledPack = null;
             }
         }
     }

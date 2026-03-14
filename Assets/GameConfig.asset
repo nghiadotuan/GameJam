@@ -14,17 +14,25 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GameConfig
   longPressDuration: 0.5
   moveThreshold: 15
-  clickExplosionRadius: 8
+  clickExplosionRadius: 1
   clickMaxSpeed: 0.08
   clickUpwardsModifier: 0.05
-  clickRippleDelayPerBallMs: 15
-  holdExplosionRadius: 8
-  holdMaxSpeed: 0.005
-  holdUpwardsModifier: 0.2
-  ballMass: 1
+  clickRippleDelayPerBallMs: 0
+  burstDistance: 0.01
+  burstUpward: 0.01
+  burstDuration: 0.1
+  fakeGravity: -8
+  fallInitialUpVelocity: 1
+  fallHorizontalSpeed: 0.2
+  fallDestroyBelowOffset: 15
+  fallMaxDuration: 4
+  holdExplosionRadius: 5
+  holdMaxSpeed: 0.05
+  holdUpwardsModifier: 0.5
+  ballMass: 0.1
   ballLinearDamping: 0.5
   ballAngularDamping: 0.5
-  ballMaxDepenetrationVelocity: 0.02
+  ballMaxDepenetrationVelocity: 0.05
   ballAutoDestroyDelay: 3
   zoomSpeed: 5
   zoomMinDistance: 1

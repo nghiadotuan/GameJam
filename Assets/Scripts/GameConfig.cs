@@ -19,6 +19,13 @@ public class GameConfig : GlobalConfig<GameConfig>
     public float burstUpward = 0.1f;
     public float burstDuration = 0.18f;
 
+    [Header("Fake Fall")]
+    public float fakeGravity = -12f;
+    public float fallInitialUpVelocity = 0.8f;
+    public float fallHorizontalSpeed = 0.4f;
+    public float fallDestroyBelowOffset = 15f;
+    public float fallMaxDuration = 4f;
+
     [Header("Hold Explosion")]
     public float holdExplosionRadius = 8f;
     public float holdMaxSpeed = 0f;
