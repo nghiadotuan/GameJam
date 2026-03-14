@@ -39,5 +39,5 @@ MonoBehaviour:
   zoomMaxDistance: 50
   zoomSmoothSpeed: 10
   pipeMoveSpeed: 0.55
-  distanceShove: 0.15
+  distanceShove: 0.2
   shoveSpeed: 5
