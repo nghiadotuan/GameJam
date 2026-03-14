@@ -39,7 +39,7 @@ public class Ball : MonoBehaviour
         // Tuỳ ý: Bổ sung 1 lực hút tĩnh xuống lòng đất (Bởi vì ta đã khoá bằng Damping 15f ở trên)
         // rb.AddForce(Vector3.down * 40f, ForceMode.Acceleration);
 
-        LMotion.Create(Vector3.one, Vector3.one * .5f, 1f)
+        LMotion.Create(Vector3.one, Vector3.one * .8f, 1f)
             .WithEase(Ease.Linear)
             .WithDelay(1)
             .BindToLocalScale(transform).AddTo(this);
