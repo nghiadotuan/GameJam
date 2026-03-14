@@ -21,20 +21,21 @@ MonoBehaviour:
   burstDistance: 0.01
   burstUpward: 0.01
   burstDuration: 0.1
-  fakeGravity: -8
+  fakeGravity: -4
   fallInitialUpVelocity: 1
   fallHorizontalSpeed: 0.2
   fallDestroyBelowOffset: 15
   fallMaxDuration: 4
-  holdExplosionRadius: 5
+  holdExplosionRadius: 1
   holdMaxSpeed: 0.05
   holdUpwardsModifier: 0.5
-  ballMass: 0.1
-  ballLinearDamping: 0.5
+  ballMass: 1
+  ballLinearDamping: 1
   ballAngularDamping: 0.5
-  ballMaxDepenetrationVelocity: 0.05
+  ballMaxDepenetrationVelocity: 2
   ballAutoDestroyDelay: 3
   zoomSpeed: 5
   zoomMinDistance: 1
   zoomMaxDistance: 50
   zoomSmoothSpeed: 10
+  pipeMoveSpeed: 0.4

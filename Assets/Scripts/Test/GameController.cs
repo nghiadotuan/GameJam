@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Cysharp.Threading.Tasks;
+using Sirenix.OdinInspector;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -18,6 +19,20 @@ public class GameController : MonoBehaviour
         PackDisabled
     }
 
+    [Header("Đường đi thực tế cho Ball")]
+    [Tooltip("List này CODE SẼ TỰ ĐỘNG ĐIỀN bằng Catmull-Rom, Ball sẽ chạy theo list này")]
+    public List<Transform> pipeNodes = new List<Transform>();
+
+    [Header("Cấu hình Đường đi gốc (Thưa thớt)")]
+    [Tooltip("Kéo thả các Transform gãy khúc của bạn vào đây")]
+    public List<Transform> originalWaypoints = new List<Transform>();
+    
+    [Tooltip("Số lượng điểm muốn chèn thêm vào giữa 2 node gốc. Càng cao càng cong mượt.")]
+    public int midpointsCount = 4;
+    
+    [Tooltip("Thư mục cha để chứa các Transform mới được đẻ ra")]
+    public Transform generatedNodesContainer;
+
     [Header("Current State")] public InputState currentState = InputState.Idle;
 
     [Header("Settings")] public Camera mainCamera;
@@ -27,9 +42,11 @@ public class GameController : MonoBehaviour
     private PackBalls _currentDisabledPack;
     private Vector2 _startPosition;
     private float _timer;
-    private bool _hitBallOnDown; // Lưu xem lúc nhấn xuống có trúng bóng không
+    private bool _hitBallOnDown; 
 
     public bool IsHoldingBall => currentState == InputState.PackDisabled;
+
+    public Transform disablePhysicsTransform;
 
     private void Awake() => Instance = this;
 
@@ -39,9 +56,6 @@ public class GameController : MonoBehaviour
         HandleReloadScene();
     }
 
-    /// <summary>
-    /// Nhấn R để reload lại scene hiện tại.
-    /// </summary>
     private void HandleReloadScene()
     {
         Keyboard keyboard = Keyboard.current;
@@ -65,42 +79,32 @@ public class GameController : MonoBehaviour
                 {
                     _startPosition = currentMousePos;
                     _timer = 0;
-                    // Kiểm tra xem có trúng bóng không nhưng CHƯA hành động gì cả
                     _hitBallOnDown = CheckIfHittingBall(_startPosition);
-
-                    // Chuyển sang trạng thái chờ tương tác (Bất kể bấm vào đâu)
                     currentState = InputState.PotentialInteraction;
                 }
-
                 break;
 
             case InputState.PotentialInteraction:
                 _timer += Time.deltaTime;
                 float dist = Vector2.Distance(_startPosition, currentMousePos);
 
-                // 1. DI CHUYỂN -> Chuyển sang xoay ngay lập tức (Bất kể có trúng bóng hay không)
                 if (dist > config.moveThreshold)
                 {
                     currentState = InputState.Swiping;
                 }
-                // 2. GIỮ IM + TRÚNG BÓNG -> Chuyển sang Disable Pack
                 else if (_timer >= config.longPressDuration && _hitBallOnDown)
                 {
                     ExecuteDisablePack(_startPosition);
                     currentState = InputState.PackDisabled;
                 }
-                // 3. THẢ TAY SỚM
                 else if (mouse.leftButton.wasReleasedThisFrame)
                 {
-                    // Nếu bấm nhanh vào bóng thì mới Log
                     if (_hitBallOnDown) ExecuteClickLog(currentMousePos);
                     currentState = InputState.Idle;
                 }
-
                 break;
 
             case InputState.Swiping:
-                // Trạng thái này cho phép SmoothModelRotator chạy
                 if (mouse.leftButton.wasReleasedThisFrame) currentState = InputState.Idle;
                 break;
 
@@ -110,7 +114,6 @@ public class GameController : MonoBehaviour
                     EnableCurrentPack();
                     currentState = InputState.Idle;
                 }
-
                 break;
         }
     }
@@ -129,7 +132,6 @@ public class GameController : MonoBehaviour
             PackBalls pack = hit.collider.GetComponentInParent<PackBalls>();
             if (pack != null)
             {
-                // Gọi hàm Async bằng UniTask.Forget() để chạy nền không chặn main thread
                 RippleExplosionTask(pack, hit.point).Forget();
             }
         }
@@ -137,33 +139,42 @@ public class GameController : MonoBehaviour
 
     private async UniTaskVoid RippleExplosionTask(PackBalls pack, Vector3 clickPoint)
     {
+        Vector3 centerPos = SmoothModelRotator.Instance.transform.position;
+
         var allBalls = pack.balls.Where(b => b != null).ToList();
-        Vector3 packCenter = pack.transform.position; // Gốc của transform cha
         pack.balls.Clear();
 
-        float maxRadius = config.clickExplosionRadius; 
+        var sortedBalls = allBalls.OrderBy(b => Vector3.Distance(b.transform.position, clickPoint)).ToList();
 
-        foreach (GameObject ballObj in allBalls)
+        float maxForceMultiplier = 0.4f;
+        var index = 0;
+        
+        foreach (GameObject ballObj in sortedBalls)
         {
             Ball b = ballObj.GetComponent<Ball>();
             if (b != null)
             {
-                // 1. Tính hướng từ GỐC CHA đến QUẢ BÓNG
-                Vector3 dirFromCenter = (ballObj.transform.position - packCenter).normalized;
+                Vector3 blastDir = (ballObj.transform.position - clickPoint).normalized;
+                blastDir.y += 0.5f; 
+                blastDir = blastDir.normalized;
 
-                // 2. Tính hệ số lực dựa trên khoảng cách từ QUẢ BÓNG đến ĐIỂM CLICK
                 float distToClick = Vector3.Distance(ballObj.transform.position, clickPoint);
-            
-                // forcePercent: gần điểm click = 1.0 (sóng cao nhất), xa dần = 0.1
-                float forcePercent = Mathf.Clamp01(1f - (distToClick / maxRadius));
-                forcePercent = Mathf.Max(forcePercent, 0.1f); 
+                float forcePercent = Mathf.Clamp01(1f - (distToClick / config.clickExplosionRadius));
 
-                // Kích hoạt đồng thời
-                b.BurstAndFall(dirFromCenter, forcePercent).Forget();
+                Vector3 finalForce = blastDir * (maxForceMultiplier * forcePercent);
+
+                if (EffectController.Instance != null)
+                {
+                    EffectController.Instance.PlayEffect(0, b.transform.position);
+                }
+
+                b.ExplodeSimple(finalForce);
+
+                if (index % 3 == 0)
+                    await UniTask.Yield();
+                index++;
             }
         }
-
-        if (pack != null) Destroy(pack.gameObject, 0.5f);
     }
 
     private void ExecuteDisablePack(Vector2 screenPos)
@@ -174,12 +185,7 @@ public class GameController : MonoBehaviour
             _currentDisabledPack = hit.collider.GetComponentInParent<PackBalls>();
             if (_currentDisabledPack != null)
             {
-                // Thay vì tự viết logic nổ ở đây, hãy dùng chung logic Ripple
-                // Điều này đảm bảo hiệu ứng bung/rơi đồng nhất trong toàn bộ game
                 RippleExplosionTask(_currentDisabledPack, hit.point).Forget();
-
-                // Đặt về null để tránh việc EnableCurrentPack() gọi nhầm SetActive(true) 
-                // vào một Pack đã bị phá hủy
                 _currentDisabledPack = null;
             }
         }
@@ -192,5 +198,79 @@ public class GameController : MonoBehaviour
             _currentDisabledPack.gameObject.SetActive(true);
             _currentDisabledPack = null;
         }
+    }
+
+    // =====================================================================
+    // --- CÔNG CỤ TẠO ĐƯỜNG CONG TỰ ĐỘNG (CATMULL-ROM) ---
+    // =====================================================================
+
+    [Button][ContextMenu("1. Sinh Đường Cong Mượt (Curved Midpoints)")]
+    public void GenerateCurvedPath()
+    {
+        if (originalWaypoints == null || originalWaypoints.Count < 2)
+        {
+            Debug.LogWarning("Cần ít nhất 2 điểm trong Original Waypoints để làm mượt!");
+            return;
+        }
+
+        if (generatedNodesContainer == null)
+        {
+            GameObject containerObj = new GameObject("Generated_Curved_Nodes");
+            containerObj.transform.SetParent(this.transform);
+            generatedNodesContainer = containerObj.transform;
+        }
+
+        for (int i = generatedNodesContainer.childCount - 1; i >= 0; i--)
+        {
+            DestroyImmediate(generatedNodesContainer.GetChild(i).gameObject);
+        }
+        pipeNodes.Clear();
+
+        for (int i = 0; i < originalWaypoints.Count - 1; i++)
+        {
+            Vector3 p0 = (i == 0) ? originalWaypoints[0].position - (originalWaypoints[1].position - originalWaypoints[0].position) : originalWaypoints[i - 1].position;
+            Vector3 p1 = originalWaypoints[i].position;
+            Vector3 p2 = originalWaypoints[i + 1].position;
+            Vector3 p3 = (i == originalWaypoints.Count - 2) ? originalWaypoints[i + 1].position + (originalWaypoints[i + 1].position - originalWaypoints[i].position) : originalWaypoints[i + 2].position;
+
+            Transform node = CreateNodeObj(p1, pipeNodes.Count);
+            pipeNodes.Add(node);
+
+            for (int step = 1; step <= midpointsCount; step++)
+            {
+                float t = (float)step / (midpointsCount + 1);
+                Vector3 curvedPos = GetCatmullRomPosition(t, p0, p1, p2, p3);
+                
+                Transform midNode = CreateNodeObj(curvedPos, pipeNodes.Count);
+                pipeNodes.Add(midNode);
+            }
+        }
+
+        Transform lastNode = CreateNodeObj(originalWaypoints[originalWaypoints.Count - 1].position, pipeNodes.Count);
+        pipeNodes.Add(lastNode);
+
+        Debug.Log($"Thành công! Đã làm mượt từ {originalWaypoints.Count} điểm gốc thành {pipeNodes.Count} điểm cong.");
+    }
+
+    private Transform CreateNodeObj(Vector3 pos, int index)
+    {
+        GameObject obj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        obj.name = $"Node_{index:000}";
+        obj.transform.position = pos;
+        obj.transform.localScale = Vector3.one * 0.05f; 
+        obj.transform.SetParent(generatedNodesContainer);
+        
+        DestroyImmediate(obj.GetComponent<Collider>());
+        
+        return obj.transform;
+    }
+
+    private Vector3 GetCatmullRomPosition(float t, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3)
+    {
+        Vector3 a = 2f * p1;
+        Vector3 b = p2 - p0;
+        Vector3 c = 2f * p0 - 5f * p1 + 4f * p2 - p3;
+        Vector3 d = -p0 + 3f * p1 - 3f * p2 + p3;
+        return 0.5f * (a + (b * t) + (c * t * t) + (d * t * t * t));
     }
 }

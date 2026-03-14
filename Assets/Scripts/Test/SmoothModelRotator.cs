@@ -14,8 +14,11 @@ public class SmoothModelRotator : MonoBehaviour
     private InputAction _touchClickAction;
     private InputAction _touchDeltaAction;
 
+    public static SmoothModelRotator Instance;
+
     private void Awake()
     {
+        Instance = this;
         var map = new InputActionMap("ModelInteraction");
         _touchClickAction = map.AddAction("Click", binding: "<Pointer>/press");
         _touchDeltaAction = map.AddAction("Delta", binding: "<Pointer>/delta");
