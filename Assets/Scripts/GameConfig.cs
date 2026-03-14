@@ -47,4 +47,8 @@ public class GameConfig : GlobalConfig<GameConfig>
     [Header("Pipe Settings")]
     [Tooltip("Tốc độ bóng trượt trong ống nước")]
     public float pipeMoveSpeed = 5f;
+
+    [Header("Shove Settings")]
+    public float distanceShove = 1.5f; // Khoảng cách dây kéo
+    public float shoveSpeed = 5f;      // Tốc độ di chuyển
 }
