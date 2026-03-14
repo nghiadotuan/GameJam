@@ -43,4 +43,8 @@ public class GameConfig : GlobalConfig<GameConfig>
     public float zoomMinDistance = 1f;
     public float zoomMaxDistance = 50f;
     public float zoomSmoothSpeed = 10f;
+
+    [Header("Pipe Settings")]
+    [Tooltip("Tốc độ bóng trượt trong ống nước")]
+    public float pipeMoveSpeed = 5f;
 }
