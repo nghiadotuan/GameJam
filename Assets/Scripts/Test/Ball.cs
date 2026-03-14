@@ -38,11 +38,6 @@ public class Ball : MonoBehaviour
 
         // Tuỳ ý: Bổ sung 1 lực hút tĩnh xuống lòng đất (Bởi vì ta đã khoá bằng Damping 15f ở trên)
         // rb.AddForce(Vector3.down * 40f, ForceMode.Acceleration);
-
-        LMotion.Create(Vector3.one, Vector3.one * .8f, 1f)
-            .WithEase(Ease.Linear)
-            .WithDelay(1)
-            .BindToLocalScale(transform).AddTo(this);
         // THÊM DÒNG NÀY: Bắt đầu theo dõi độ cao ngầm
         MonitorHeightAndRemovePhysics().Forget();
     }
@@ -55,7 +50,13 @@ public class Ball : MonoBehaviour
         {
             if (GameController.Instance != null && GameController.Instance.disablePhysicsTransform != null)
             {
-                if (transform.position.y < GameController.Instance.disablePhysicsTransform.position.y)
+                Transform target = GameController.Instance.disablePhysicsTransform;
+
+                // Tính trị tuyệt đối khoảng cách trục X giữa bóng và tâm phễu
+                float deltaX = Mathf.Abs(transform.position.x - target.position.x);
+
+                // ĐIỀU KIỆN KÉP: Y phải thấp hơn mốc VÀ X phải lệch không quá 0.1f
+                if (transform.position.y < target.position.y && deltaX < 0.1f)
                 {
                     // 1. Xóa vật lý
                     Rigidbody rb = GetComponent<Rigidbody>();
@@ -67,6 +68,12 @@ public class Ball : MonoBehaviour
                     // 2. Bắt đầu hành trình trượt trong ống
                     MoveAlongTransformListTask().Forget();
 
+                    // 3. Thu nhỏ bóng
+                    LMotion.Create(Vector3.one, Vector3.one * 0.5f, 1f)
+                        .WithEase(Ease.Linear)
+                        .WithDelay(1)
+                        .BindToLocalScale(transform).AddTo(GameController.Instance);
+                    
                     break; // Dừng vòng lặp check độ cao
                 }
             }
