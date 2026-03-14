@@ -7,6 +7,12 @@ public class SmallShove : MonoBehaviour
     public int NumBallFull { get; set; }
     public List<Transform> ListPosBall;
     public int IndexPosBall { get; set; }
+    
+    public int CurrentBallCount { get; private set; }
+    public int PendingBallCount { get; set; }
+    public System.Action<SmallShove> OnShoveFull;
+
+    public bool IsFull => (CurrentBallCount + PendingBallCount) >= NumBallFull;
 
     [Button]
     private void SetListPosBall()
@@ -18,17 +24,28 @@ public class SmallShove : MonoBehaviour
         }
     }
 
-    private Vector3 GetPos()
+    public Transform GetPosTransform()
     {
         if (IndexPosBall < 0)
         {
             IndexPosBall++;
-            return ListPosBall[0].position;
+            return ListPosBall[0];
         }
-        if (IsOverPos) return transform.position;
-        var pos = ListPosBall[IndexPosBall].position;
+        if (IsOverPos) return transform;
+        var posTrf = ListPosBall[IndexPosBall];
         IndexPosBall++;
-        return pos;
+        return posTrf;
+    }
+
+    public void ReceiveBall()
+    {
+        if (PendingBallCount > 0) PendingBallCount--;
+        CurrentBallCount++;
+        
+        if (CurrentBallCount >= NumBallFull && NumBallFull > 0)
+        {
+            OnShoveFull?.Invoke(this);
+        }
     }
 
     public bool IsOverPos => IndexPosBall >= ListPosBall.Count;

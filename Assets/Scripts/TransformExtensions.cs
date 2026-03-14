@@ -9,11 +9,11 @@ public static class TransformExtensions
     /// </summary>
     /// <param name="transform">Transform của quả bóng cần bắn</param>
     /// <param name="startPos">Điểm xuất phát</param>
-    /// <param name="endPos">Điểm rơi xuống</param>
+    /// <param name="endTarget">Transform đích đến (tự động cập nhật vị trí mỗi frame)</param>
     /// <param name="duration">Thời gian bay (giây)</param>
     /// <param name="arcHeight">Độ cao tối đa của vòng cung</param>
     /// <param name="cancellationToken">Token để hủy Task nếu object bị xóa</param>
-    public static async UniTask ShootArcAsync(this Transform transform, Vector3 startPos, Vector3 endPos, float duration, float arcHeight, CancellationToken cancellationToken = default)
+    public static async UniTask ShootArcAsync(this Transform transform, Vector3 startPos, Transform endTarget, float duration, float arcHeight, CancellationToken cancellationToken = default)
     {
         float elapsedTime = 0f;
 
@@ -30,8 +30,9 @@ public static class TransformExtensions
             // Tính phần trăm thời gian đã trôi qua (t chạy từ 0 đến 1)
             float t = Mathf.Clamp01(elapsedTime / duration);
 
-            // 1. Tính tọa độ tịnh tiến theo đường thẳng từ Start -> End
-            Vector3 currentLinearPos = Vector3.Lerp(startPos, endPos, t);
+            // 1. Tính tọa độ tịnh tiến theo đường thẳng từ Start -> End (Vị trí End cập nhật liên tục)
+            Vector3 currentEndPos = endTarget != null ? endTarget.position : transform.position;
+            Vector3 currentLinearPos = Vector3.Lerp(startPos, currentEndPos, t);
 
             // 2. Tính độ cao của vòng cung Parabola
             // Công thức: 4 * h * t * (1 - t). Đỉnh cao nhất tại t = 0.5
@@ -49,10 +50,10 @@ public static class TransformExtensions
             await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
         }
 
-        // Đảm bảo khi kết thúc, object nằm chính xác tại điểm End
-        if (transform != null)
+        // Đảm bảo khi kết thúc, object nằm chính xác tại điểm End (và reset localPosition nếu cần)
+        if (transform != null && endTarget != null)
         {
-            transform.position = endPos;
+            transform.position = endTarget.position;
         }
     }
 }

@@ -2,8 +2,22 @@ using System.Collections.Generic;
 using Sirenix.OdinInspector;
 using UnityEngine;
 
+public enum ColorEnum
+{
+    None,
+    Red,
+    Blue,
+    Green,
+    Yellow,
+    Purple,
+    Orange,
+    Pink
+}
+
 public class PackBalls : MonoBehaviour
 {
+    public ColorEnum colorIndex = ColorEnum.None;
+    
     [Header("Data Management")]
     [Tooltip("Danh sách chứa toàn bộ các quả bóng con")]
     public List<GameObject> balls = new List<GameObject>();

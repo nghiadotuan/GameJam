@@ -10,11 +10,14 @@ public class Ball : MonoBehaviour
 {
     private bool _isExploded = false;
     private static float _nextShootTime = 0f;
+    private static float _nextEnterPipeTime = 0f;
+    private SmallShove _assignedShove;
 
-    public void ExplodeSimple(Vector3 force)
+    public void ExplodeSimple(Vector3 force, SmallShove assignedShove = null)
     {
         if (_isExploded) return;
         _isExploded = true;
+        _assignedShove = assignedShove;
 
         transform.SetParent(null, true);
 
@@ -77,7 +80,7 @@ public class Ball : MonoBehaviour
                 float deltaX = Mathf.Abs(transform.position.x - target.position.x);
 
                 // Nếu lọt xuống dưới Y và X nằm ngay sát tâm lỗ
-                if (transform.position.y < target.position.y + 0.1f && deltaX < 0.68f)
+                if (transform.position.y < target.position.y + 0.1f && deltaX < 0.5f)
                 {
                     // Xóa vật lý
                     if (rb != null) Destroy(rb);
@@ -104,6 +107,24 @@ public class Ball : MonoBehaviour
 
     private async UniTaskVoid MoveAlongTransformListTask()
     {
+        // ==========================================
+        // GIAI ĐOẠN 1.0: XẾP HÀNG CHỜ RƠI XUỐNG ỐNG (GIÃN CÁCH)
+        // ==========================================
+        float myEnterTime;
+        if (Time.time > _nextEnterPipeTime) myEnterTime = Time.time;
+        else myEnterTime = _nextEnterPipeTime;
+
+        float enterInterval = 0.025f; // Thời gian giãn cách giữa các bóng trong ống
+        _nextEnterPipeTime = (myEnterTime + enterInterval) / 3;
+
+        float waitToEnter = myEnterTime - Time.time;
+        if (waitToEnter > 0)
+        {
+            await UniTask.Delay(TimeSpan.FromSeconds(waitToEnter), ignoreTimeScale: false, cancellationToken: this.GetCancellationTokenOnDestroy());
+        }
+
+        if (this == null || gameObject == null) return;
+
         if (GameController.Instance == null || GameController.Instance.pipeNodes == null || GameController.Instance.pipeNodes.Count == 0) return;
 
         List<Transform> nodes = GameController.Instance.pipeNodes;
@@ -178,21 +199,38 @@ public class Ball : MonoBehaviour
             if (targetShove != null)
             {
                 Vector3 startPos = transform.position;
-                Vector3 endPos = targetShove.transform.position;
+                Transform endTarget;
 
-                // Lệch điểm đích đi một xíu tạo cảm giác bóng rơi lộn xộn tự nhiên trong thùng (Tùy chọn)
-               // endPos += UnityEngine.Random.insideUnitSphere * 0.15f;
-                endPos.y = targetShove.transform.position.y; // Giữ nguyên mặt phẳng đáy của thùng
+                if (_assignedShove != null)
+                {
+                    endTarget = _assignedShove.GetPosTransform();
+                }
+                else
+                {
+                    endTarget = targetShove.transform;
+                }
 
                 float flyDuration = 0.4f; // Bay nhanh dứt khoát
                 float arcHeight = .068f; // Độ cao vòng cung
 
-                // Thực thi bắn
-                await transform.ShootArcAsync(startPos, endPos, flyDuration, arcHeight, this.GetCancellationTokenOnDestroy());
+                // Thực thi bắn bám theo mục tiêu (đích di động)
+                await transform.ShootArcAsync(startPos, endTarget, flyDuration, arcHeight, this.GetCancellationTokenOnDestroy());
 
                 if (this != null && gameObject != null && targetShove != null)
                 {
-                    transform.SetParent(targetShove.transform);
+                    // Xét Parent và reset Local Position tĩnh để bay theo thùng Shove an toàn
+                    if (_assignedShove != null)
+                    {
+                        transform.SetParent(endTarget); // Làm con trực tiếp của cái transform cục bộ luôn để cứng ngắt
+                        transform.localPosition = Vector3.zero;
+
+                        _assignedShove.ReceiveBall();
+                    }
+                    else
+                    {
+                        transform.SetParent(targetShove.transform);
+                        // transform.localPosition = Vector3.zero; // Nếu không có Shove Nhỏ thì chỉ làm con Shove bự
+                    }
                 }
             }
         }

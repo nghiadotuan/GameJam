@@ -142,9 +142,36 @@ public class GameController : MonoBehaviour
         Vector3 centerPos = SmoothModelRotator.Instance.transform.position;
 
         var allBalls = pack.balls.Where(b => b != null).ToList();
-        pack.balls.Clear();
-
         var sortedBalls = allBalls.OrderBy(b => Vector3.Distance(b.transform.position, clickPoint)).ToList();
+
+        SmallShove[] smallShoves = null;
+        ShoveMovement targetShove = null;
+
+        if (ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
+        {
+            // Tìm Shove đầu tiên trên băng chuyền phù hợp (chưa gán Pack nào hoặc đã gán đúng Pack này)
+            // CHỈ KIỂM TRA TỐI ĐA 2 SHOVE ĐỨNG ĐẦU
+            int maxShovesToCheck = Mathf.Min(2, ShoveContainer.Instance.shoveList.Count);
+            for (int i = 0; i < maxShovesToCheck; i++)
+            {
+                var shove = ShoveContainer.Instance.shoveList[i];
+                if (shove.TargetColor == ColorEnum.None || shove.TargetColor == pack.colorIndex)
+                {
+                    targetShove = shove;
+                    targetShove.TargetColor = pack.colorIndex; // Khóa Shove này lại bằng màu của Pack
+                    smallShoves = targetShove.GetComponentsInChildren<SmallShove>();
+                    break;
+                }
+            }
+        }
+
+        if (targetShove == null)
+        {
+            Debug.LogWarning("Không tìm thấy Shove trống nào trên băng chuyền để chứa Pack này!");
+            return;
+        }
+
+        pack.balls.Clear();
 
         float maxForceMultiplier = 0.4f;
         var index = 0;
@@ -168,7 +195,52 @@ public class GameController : MonoBehaviour
                     EffectController.Instance.PlayEffect(0, b.transform.position);
                 }
 
-                b.ExplodeSimple(finalForce);
+                SmallShove assignedShove = null;
+                if (smallShoves != null)
+                {
+                    // Chạy gán sức chứa ban đầu nếu toàn bộ Shove chưa từng được allocate (NumBallFull == 0)
+                    bool needsInitCapacity = false;
+                    foreach (var s in smallShoves)
+                    {
+                        if (s.NumBallFull == 0) needsInitCapacity = true;
+                    }
+
+                    if (needsInitCapacity)
+                    {
+                        int totalBallsToFill = sortedBalls.Count;
+                        int emptyCount = smallShoves.Length;
+                        
+                        if (emptyCount > 0)
+                        {
+                            int baseCap = totalBallsToFill / emptyCount;
+                            int remainder = totalBallsToFill % emptyCount;
+
+                            for (int i = 0; i < smallShoves.Length; i++)
+                            {
+                                int cap = baseCap + (i == smallShoves.Length - 1 ? remainder : 0);
+                                smallShoves[i].NumBallFull = smallShoves[i].CurrentBallCount + cap;
+                                
+                                if (cap > smallShoves[i].ListPosBall.Count)
+                                    smallShoves[i].IndexPosBall = smallShoves[i].ListPosBall.Count - cap;
+                                else
+                                    smallShoves[i].IndexPosBall = 0;
+                            }
+                        }
+                    }
+
+                    // Tìm 1 cái chưa full (Cả Current + Pending) để nhét vào
+                    foreach (var s in smallShoves)
+                    {
+                        if (!s.IsFull)
+                        {
+                            assignedShove = s;
+                            s.PendingBallCount++; // Tạm thời xí chổ
+                            break;
+                        }
+                    }
+                }
+
+                b.ExplodeSimple(finalForce, assignedShove);
 
                 if (index % 3 == 0)
                     await UniTask.Yield();
@@ -272,5 +344,78 @@ public class GameController : MonoBehaviour
         Vector3 c = 2f * p0 - 5f * p1 + 4f * p2 - p3;
         Vector3 d = -p0 + 3f * p1 - 3f * p2 + p3;
         return 0.5f * (a + (b * t) + (c * t * t) + (d * t * t * t));
+    }
+
+    // =====================================================================
+    // --- CÔNG CỤ TẠO SHOVE TỰ ĐỘNG THEO SỐ LƯỢNG PACKBALS ---
+    // =====================================================================
+
+    [Header("Auto Gen Shoves")]
+    [Tooltip("Prefab của xe Shove")]
+    public GameObject shovePrefab;
+    [Tooltip("Vị trí cha chứa các xe Shove sinh ra")]
+    public Transform shoveParent;
+
+    [Button][ContextMenu("2. Sinh Shove Tự Động Theo PackBalls")]
+    public void GenerateShovesFromPacks()
+    {
+        if (shovePrefab == null)
+        {
+            Debug.LogWarning("Chưa gắn Prefab Shove!");
+            return;
+        }
+
+        if (ShoveContainer.Instance == null)
+        {
+            ShoveContainer.Instance = FindAnyObjectByType<ShoveContainer>();
+            if (ShoveContainer.Instance == null)
+            {
+                Debug.LogWarning("Không tìm thấy ShoveContainer!");
+                return;
+            }
+        }
+
+        // 1. Tìm toàn bộ PackBalls đang có trên Scene
+        PackBalls[] allPacks = FindObjectsByType<PackBalls>(FindObjectsSortMode.None);
+        if (allPacks.Length == 0)
+        {
+            Debug.LogWarning("Không có PackBalls nào trên scene!");
+            return;
+        }
+
+        // 2. Xóa sạch các xe Shove cũ trong Container và trên Scene
+        for (int i = ShoveContainer.Instance.shoveList.Count - 1; i >= 0; i--)
+        {
+            if (ShoveContainer.Instance.shoveList[i] != null)
+            {
+                DestroyImmediate(ShoveContainer.Instance.shoveList[i].gameObject);
+            }
+        }
+        ShoveContainer.Instance.shoveList.Clear();
+
+        // 3. (Tùy chọn) Xáo trộn ngẫu nhiên thứ tự PackBalls để sinh xe ngẫu nhiên thứ tự
+        // (Nếu bạn muốn xe chạy ra tuần tự thì bỏ qua đoạn xáo trộn này)
+        List<PackBalls> randomizedPacks = allPacks.OrderBy(x => Random.value).ToList();
+
+        // 4. Sinh xe Shove mới cho từng Pack
+        foreach (var pack in randomizedPacks)
+        {
+            Transform parentToUse = shoveParent != null ? shoveParent : ShoveContainer.Instance.transform;
+            GameObject newShoveObj = Instantiate(shovePrefab, parentToUse);
+            newShoveObj.name = $"Shove_{pack.colorIndex}";
+
+            ShoveMovement shoveMove = newShoveObj.GetComponent<ShoveMovement>();
+            if (shoveMove != null)
+            {
+                // Gán màu đích mà Shove này sẽ khóa cố định ngay từ lúc mới sinh ra
+                shoveMove.TargetColor = pack.colorIndex;
+                ShoveContainer.Instance.shoveList.Add(shoveMove);
+            }
+        }
+
+        // 5. Cập nhật xếp hàng xe trên băng chuyền
+        ShoveContainer.Instance.SetupShovePositions();
+
+        Debug.Log($"<color=green>Thành công!</color> Đã dọn xe cũ và tự động sinh {allPacks.Length} chiếc Shove mới chở bóng theo màu.");
     }
 }

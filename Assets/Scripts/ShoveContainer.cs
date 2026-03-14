@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using Sirenix.OdinInspector;
 using UnityEngine;
 
@@ -15,6 +16,8 @@ public class ShoveContainer : MonoBehaviour
     [Header("Danh sách Shove")] public List<ShoveMovement> shoveList = new List<ShoveMovement>();
 
     [Header("Trạng thái băng chuyền")] public ContainerState currentState = ContainerState.Stop;
+
+    private bool _isTriggeringMoveOut = false;
 
     private void Awake()
     {
@@ -98,22 +101,43 @@ public class ShoveContainer : MonoBehaviour
     [ContextMenu("2. Đẩy Shove đầu tiên ra (Move Out)")]
     public void TriggerMoveOutFrontShove()
     {
+        TriggerMoveOutFrontShoveAsync().Forget();
+    }
+
+    private async UniTaskVoid TriggerMoveOutFrontShoveAsync()
+    {
+        if (_isTriggeringMoveOut) return;
+        
         if (shoveList.Count > 0)
         {
-            // 1. Lấy thằng đầu tiên ra
+            _isTriggeringMoveOut = true;
+
+            // 1. Chờ 1 chút xíu (vd: 0.6 giây) để cho mấy quả bóng rớt nảy yên vị hết trong thùng rồi mới đẩy đi
+            await UniTask.Delay(System.TimeSpan.FromSeconds(0.6f));
+
+            // Cần check lại phòng khi list đã bị thay đổi trong lúc chờ
+            if (shoveList.Count == 0)
+            {
+                _isTriggeringMoveOut = false;
+                return;
+            }
+
+            // 2. Lấy thằng đầu tiên ra
             ShoveMovement frontShove = shoveList[0];
 
-            // 2. Xóa nó khỏi List của Container
+            // 3. Xóa nó khỏi List của Container
             shoveList.RemoveAt(0);
 
-            // 3. Kích hoạt logic Move Out của nó
+            // 4. Kích hoạt logic Move Out của nó
             frontShove.StartMoveOut();
 
-            // 4. Cho băng chuyền chạy tiếp để thằng thứ 2 (giờ thành Index 0) lên điền vào chỗ trống
+            // 5. Cho băng chuyền chạy tiếp để thằng thứ 2 (giờ thành Index 0) lên điền vào chỗ trống
             if (shoveList.Count > 0)
             {
                 currentState = ContainerState.Move;
             }
+
+            _isTriggeringMoveOut = false;
         }
     }
 }

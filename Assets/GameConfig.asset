@@ -40,4 +40,4 @@ MonoBehaviour:
   zoomSmoothSpeed: 10
   pipeMoveSpeed: 0.25
   distanceShove: 0.2
-  shoveSpeed: 5
+  shoveSpeed: 2
