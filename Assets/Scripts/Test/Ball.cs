@@ -266,4 +266,27 @@ public class Ball : MonoBehaviour
             }
         }
     }
+
+    public async UniTask TransferToShoveAsync(SmallShove targetShove)
+    {
+        if (targetShove == null || this == null || gameObject == null) return;
+
+        _assignedShove = targetShove;
+
+        Vector3 startPos = transform.position;
+        Transform endTarget = _assignedShove.GetPosTransform();
+        
+        float flyDuration = 0.4f;
+        float arcHeight = 0.068f;
+
+        // Bắn vòng cung thẳng vào mục tiêu
+        await transform.ShootArcAsync(startPos, endTarget, flyDuration, arcHeight, this.GetCancellationTokenOnDestroy());
+
+        if (this != null && gameObject != null && _assignedShove != null)
+        {
+            transform.SetParent(endTarget);
+            transform.localPosition = Vector3.zero;
+            _assignedShove.ReceiveBall();
+        }
+    }
 }

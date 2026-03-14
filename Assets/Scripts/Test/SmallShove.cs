@@ -8,7 +8,7 @@ public class SmallShove : MonoBehaviour
     public List<Transform> ListPosBall;
     public int IndexPosBall { get; set; }
     
-    public int CurrentBallCount { get; private set; }
+    public int CurrentBallCount { get; set; }
     public int PendingBallCount { get; set; }
     public System.Action<SmallShove> OnShoveFull;
 
@@ -49,4 +49,12 @@ public class SmallShove : MonoBehaviour
     }
 
     public bool IsOverPos => IndexPosBall >= ListPosBall.Count;
+
+    public void ResetShove()
+    {
+        CurrentBallCount = 0;
+        PendingBallCount = 0;
+        IndexPosBall = 0;
+        NumBallFull = 0;
+    }
 }

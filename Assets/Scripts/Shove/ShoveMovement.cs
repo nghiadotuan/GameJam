@@ -49,6 +49,45 @@ public class ShoveMovement : MonoBehaviour
             {
                 ShoveContainer.Instance.TriggerMoveOutFrontShove();
             }
+            else if (GameController.Instance != null && GameController.Instance.stashShoves.Contains(this))
+            {
+                // Gọi GameController thử dọn dẹp chuyển qua xe chính
+                GameController.Instance.TryTransferStashToMainAsync().Forget();
+            }
+        }
+    }
+
+    public void ResetToEmpty()
+    {
+        TargetColor = ColorEnum.None;
+
+        if (_smallShoves != null)
+        {
+            foreach (var ss in _smallShoves)
+            {
+                if (ss != null) ss.ResetShove();
+            }
+        }
+
+        // Bỏ Parent toàn bộ bóng hiện có (để bọn chúng bay đi chỗ khác mà không bám vào chiếc xe này nữa)
+        // Lưu ý: Các bóng này sẽ tự động SetParent vào SmallShove/ShoveMovement MỚI trong hàm TransferToShoveAsync của chúng
+        foreach (Transform child in transform)
+        {
+            Ball b = child.GetComponent<Ball>();
+            if (b != null)
+            {
+                child.SetParent(null, true);
+            }
+        }
+
+        // Khôi phục bộ giáp xám
+        if (GameController.Instance != null && GameController.Instance.materialMapping != null && GameController.Instance.materialMapping.Count > 0)
+        {
+            var renderer = GetComponentInChildren<MeshRenderer>();
+            if (renderer != null)
+            {
+                renderer.material = GameController.Instance.materialMapping[0]; // 0 là None (Xám)
+            }
         }
     }
 

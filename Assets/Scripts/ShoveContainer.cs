@@ -95,6 +95,12 @@ public class ShoveContainer : MonoBehaviour
         if (Mathf.Abs(headShove.transform.position.x) <= 0.001f)
         {
             currentState = ContainerState.Stop;
+            
+            // Kích hoạt check xem có rác ở Stash cần đổ vào xe mới tới không
+            if (GameController.Instance != null)
+            {
+                GameController.Instance.TryTransferStashToMainAsync().Forget();
+            }
         }
     }
 

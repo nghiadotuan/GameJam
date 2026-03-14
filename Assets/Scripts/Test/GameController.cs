@@ -47,6 +47,8 @@ public class GameController : MonoBehaviour
     [Tooltip("Danh sách các xe Shove phụ bên ngoài (màu xám). Sẽ được dùng khi 2 xe chính đã kín màu khác.")]
     public List<ShoveMovement> stashShoves = new List<ShoveMovement>();
 
+    public bool isTransferringStash = false;
+
     private PackBalls _currentDisabledPack;
     private Vector2 _startPosition;
     private float _timer;
@@ -75,6 +77,8 @@ public class GameController : MonoBehaviour
 
     private void HandleInputState()
     {
+        if (isTransferringStash) return; // Khoá tương tác trong lúc bóng đang bay từ Stash vào Main
+        
         var mouse = Mouse.current;
         if (mouse == null) return;
 
@@ -312,6 +316,128 @@ public class GameController : MonoBehaviour
             _currentDisabledPack = null;
         }
     }
+
+    public async UniTaskVoid TryTransferStashToMainAsync()
+    {
+        if (isTransferringStash) return;
+
+        ShoveMovement targetMainShove = null;
+        if (ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
+        {
+            int maxShovesToCheck = Mathf.Min(2, ShoveContainer.Instance.shoveList.Count);
+            for (int i = 0; i < maxShovesToCheck; i++)
+            {
+                if (ShoveContainer.Instance.shoveList[i].TargetColor == ColorEnum.None)
+                {
+                    targetMainShove = ShoveContainer.Instance.shoveList[i];
+                    break;
+                }
+            }
+        }
+
+        if (targetMainShove == null) return;
+
+        ShoveMovement fullStashShove = null;
+        foreach (var stash in stashShoves)
+        {
+            if (stash.TargetColor != ColorEnum.None)
+            {
+                bool allFull = true;
+                foreach (var ss in stash.GetComponentsInChildren<SmallShove>())
+                {
+                    if (ss.CurrentBallCount < ss.NumBallFull || ss.NumBallFull == 0)
+                    {
+                        allFull = false;
+                        break;
+                    }
+                }
+                if (allFull)
+                {
+                    fullStashShove = stash;
+                    break;
+                }
+            }
+        }
+
+        if (fullStashShove == null) return;
+
+        isTransferringStash = true;
+
+        targetMainShove.TargetColor = fullStashShove.TargetColor;
+        SmallShove[] stashSmallShoves = fullStashShove.GetComponentsInChildren<SmallShove>();
+        SmallShove[] mainSmallShoves = targetMainShove.GetComponentsInChildren<SmallShove>();
+
+        List<Ball> ballsToTransfer = new List<Ball>();
+        foreach (var ss in stashSmallShoves)
+        {
+            ballsToTransfer.AddRange(ss.GetComponentsInChildren<Ball>());
+        }
+
+        if (ballsToTransfer.Count == 0)
+        {
+            ballsToTransfer = fullStashShove.GetComponentsInChildren<Ball>().ToList();
+        }
+
+        int totalBalls = ballsToTransfer.Count;
+        int emptyCount = mainSmallShoves.Length;
+        
+        if (emptyCount > 0)
+        {
+            int baseCap = totalBalls / emptyCount;
+            int remainder = totalBalls % emptyCount;
+
+            for (int i = 0; i < mainSmallShoves.Length; i++)
+            {
+                int cap = baseCap + (i == mainSmallShoves.Length - 1 ? remainder : 0);
+                mainSmallShoves[i].NumBallFull = cap;
+                mainSmallShoves[i].CurrentBallCount = 0;
+                mainSmallShoves[i].PendingBallCount = 0; 
+                
+                if (cap > mainSmallShoves[i].ListPosBall.Count)
+                    mainSmallShoves[i].IndexPosBall = mainSmallShoves[i].ListPosBall.Count - cap;
+                else
+                    mainSmallShoves[i].IndexPosBall = 0;
+            }
+        }
+
+        foreach (var b in ballsToTransfer)
+        {
+            b.transform.SetParent(null, true);
+        }
+
+        List<UniTask> transferTasks = new List<UniTask>();
+
+        foreach (var ball in ballsToTransfer)
+        {
+            if (ball == null) continue;
+
+            SmallShove assignedShove = null;
+            foreach (var s in mainSmallShoves)
+            {
+                if (!s.IsFull)
+                {
+                    assignedShove = s;
+                    s.PendingBallCount++;
+                    break;
+                }
+            }
+
+            if (assignedShove != null)
+            {
+                transferTasks.Add(ball.TransferToShoveAsync(assignedShove));
+                await UniTask.Delay(System.TimeSpan.FromSeconds(0.08f)); 
+            }
+        }
+
+        await UniTask.WhenAll(transferTasks);
+
+        fullStashShove.ResetToEmpty();
+
+        isTransferringStash = false;
+
+        TryTransferStashToMainAsync().Forget();
+    }
+
 
     // =====================================================================
     // --- CÔNG CỤ TẠO ĐƯỜNG CONG TỰ ĐỘNG (CATMULL-ROM) ---
