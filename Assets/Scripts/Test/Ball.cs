@@ -15,6 +15,7 @@ public class Ball : MonoBehaviour
     public void ExplodeSimple(Vector3 force)
     {
         if (_isExploded) return;
+        gameObject.layer = LayerMask.NameToLayer("BallFall");
         _isExploded = true;
 
         transform.SetParent(null, true);
@@ -46,39 +47,68 @@ public class Ball : MonoBehaviour
 
     private async UniTaskVoid MonitorHeightAndRemovePhysics()
     {
+        Rigidbody rb = GetComponent<Rigidbody>();
+
         while (this != null && gameObject != null)
         {
             if (GameController.Instance != null && GameController.Instance.disablePhysicsTransform != null)
             {
                 Transform target = GameController.Instance.disablePhysicsTransform;
 
-                // Tính trị tuyệt đối khoảng cách trục X giữa bóng và tâm phễu
+                // ==========================================
+                // 1. TẠO LỰC HÚT VẬT LÝ NHẸ NHÀNG VỀ TÂM LỖ
+                // ==========================================
+                if (rb != null)
+                {
+                    // Chỉ tính toán hướng hút trên mặt phẳng ngang (X và Z), bỏ qua Y để bóng rơi tự nhiên
+                    Vector3 targetPos = new Vector3(target.position.x, transform.position.y, target.position.z);
+
+                    // Khoảng cách ngang từ bóng đến tâm lỗ
+                    float horizontalDistance = Vector3.Distance(transform.position, targetPos);
+
+                    // Chỉ bắt đầu hút khi bóng rơi vào gần khu vực phễu (ví dụ cách tâm lỗ < 2 đơn vị)
+                    // và độ cao Y của bóng đang gần bằng miệng phễu (tránh hút bóng khi nó đang bay tít trên cao)
+                    if (horizontalDistance > 0.05f && transform.position.y < target.position.y + 3f)
+                    {
+                        Vector3 pullDirection = (targetPos - transform.position).normalized;
+
+                        // Chỉnh lực này nhỏ thôi (ví dụ 1f - 3f) để nó lăn từ từ tạo cảm giác tự nhiên
+                        float pullForce = 2f;
+
+                        // Dùng ForceMode.Force để duy trì gia tốc nhẹ nhàng
+                        rb.AddForce(pullDirection * pullForce);
+                    }
+                }
+
+                // ==========================================
+                // 2. LOGIC KIỂM TRA ĐỂ CHUI VÀO ỐNG
+                // ==========================================
                 float deltaX = Mathf.Abs(transform.position.x - target.position.x);
 
-                // ĐIỀU KIỆN KÉP: Y phải thấp hơn mốc VÀ X phải lệch không quá 0.1f
-                if (transform.position.y < target.position.y && deltaX < 0.1f)
+                // Nếu lọt xuống dưới Y và X nằm ngay sát tâm lỗ (khe hẹp 0.1f)
+                if (transform.position.y < target.position.y+.1 && deltaX < .68f)
                 {
-                    // 1. Xóa vật lý
-                    Rigidbody rb = GetComponent<Rigidbody>();
+                    // Xóa vật lý
                     if (rb != null) Destroy(rb);
 
                     Collider col = GetComponent<Collider>();
                     if (col != null) Destroy(col);
 
-                    // 2. Bắt đầu hành trình trượt trong ống
+                    // Bắt đầu hành trình trượt trong ống
                     MoveAlongTransformListTask().Forget();
 
-                    // 3. Thu nhỏ bóng
+                    // Thu nhỏ bóng
                     LMotion.Create(Vector3.one, Vector3.one * 0.5f, 1f)
                         .WithEase(Ease.Linear)
                         .WithDelay(1)
                         .BindToLocalScale(transform).AddTo(GameController.Instance);
-                    
+
                     break; // Dừng vòng lặp check độ cao
                 }
             }
 
-            await UniTask.Yield(PlayerLoopTiming.Update);
+            // ĐÃ SỬA: Chuyển sang FixedUpdate vì có dùng AddForce để vật lý chạy chuẩn xác
+            await UniTask.Yield(PlayerLoopTiming.FixedUpdate);
         }
     }
 
@@ -92,7 +122,7 @@ public class Ball : MonoBehaviour
         }
 
         List<Transform> nodes = GameController.Instance.pipeNodes;
-        float speed = GameConfig.Instance.pipeMoveSpeed; 
+        float speed = GameConfig.Instance.pipeMoveSpeed;
         int currentNodeIndex = 0;
 
         // Lặp qua từng Transform trong danh sách
@@ -101,7 +131,7 @@ public class Ball : MonoBehaviour
             Transform targetNode = nodes[currentNodeIndex];
 
             // Đề phòng trường hợp một Node vô tình bị xóa trên Scene
-            if (targetNode == null) 
+            if (targetNode == null)
             {
                 currentNodeIndex++;
                 continue;
@@ -114,8 +144,8 @@ public class Ball : MonoBehaviour
             while (this != null && gameObject != null && Vector3.Distance(transform.position, targetWorldPos) > 0.001f)
             {
                 transform.position = Vector3.MoveTowards(
-                    transform.position, 
-                    targetWorldPos, 
+                    transform.position,
+                    targetWorldPos,
                     speed * Time.deltaTime
                 );
 

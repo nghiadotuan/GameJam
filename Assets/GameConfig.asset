@@ -38,4 +38,4 @@ MonoBehaviour:
   zoomMinDistance: 1
   zoomMaxDistance: 50
   zoomSmoothSpeed: 10
-  pipeMoveSpeed: 0.4
+  pipeMoveSpeed: 0.55
