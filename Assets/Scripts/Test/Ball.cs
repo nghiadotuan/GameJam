@@ -38,7 +38,7 @@ public class Ball : MonoBehaviour
         rb.maxDepenetrationVelocity = 0.05f; // Rất nhỏ để hợp với size 0.02
 
         // Tuỳ ý: Bổ sung 1 lực hút tĩnh xuống lòng đất (Bởi vì ta đã khoá bằng Damping 15f ở trên)
-        // rb.AddForce(Vector3.down * 40f, ForceMode.Acceleration);
+         rb.AddForce(Vector3.down * 40f, ForceMode.Acceleration);
         // THÊM DÒNG NÀY: Bắt đầu theo dõi độ cao ngầm
         MonitorHeightAndRemovePhysics().Forget();
     }
@@ -68,7 +68,7 @@ public class Ball : MonoBehaviour
 
                     // Chỉ bắt đầu hút khi bóng rơi vào gần khu vực phễu (ví dụ cách tâm lỗ < 2 đơn vị)
                     // và độ cao Y của bóng đang gần bằng miệng phễu (tránh hút bóng khi nó đang bay tít trên cao)
-                    if (horizontalDistance > 0.05f && transform.position.y < target.position.y + 3f)
+                    if (horizontalDistance > 0.05f && transform.position.y < target.position.y + .5f)
                     {
                         Vector3 pullDirection = (targetPos - transform.position).normalized;
 
