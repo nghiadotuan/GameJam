@@ -39,6 +39,14 @@ public class GameController : MonoBehaviour
     public LayerMask ballLayer;
     public GameConfig config;
 
+    [Header("Material Mapping")]
+    [Tooltip("Danh sách Material tương ứng với ColorEnum. Vị trí 0 là None (Material Xám).")]
+    public List<Material> materialMapping = new List<Material>();
+
+    [Header("Stash Containers")]
+    [Tooltip("Danh sách các xe Shove phụ bên ngoài (màu xám). Sẽ được dùng khi 2 xe chính đã kín màu khác.")]
+    public List<ShoveMovement> stashShoves = new List<ShoveMovement>();
+
     private PackBalls _currentDisabledPack;
     private Vector2 _startPosition;
     private float _timer;
@@ -165,9 +173,42 @@ public class GameController : MonoBehaviour
             }
         }
 
+        // ===============================================
+        // FALLBACK: KHI 2 SHOVE CHÍNH ĐÃ KÍN BỞI MÀU KHÁC
+        // Kiểm tra danh sách xe xám phụ (Stash Shoves)
+        // ===============================================
+        if (targetShove == null && stashShoves != null && stashShoves.Count > 0)
+        {
+            foreach (var stash in stashShoves)
+            {
+                if (stash.TargetColor == ColorEnum.None || stash.TargetColor == pack.colorIndex)
+                {
+                    targetShove = stash;
+                    smallShoves = stash.GetComponentsInChildren<SmallShove>();
+
+                    // Nếu chiếc Shove này vốn là màu xám (None), thì hóa phép đổi màu nó
+                    if (stash.TargetColor == ColorEnum.None)
+                    {
+                        stash.TargetColor = pack.colorIndex;
+
+                        // (Tuỳ chọn) Đổi ngay Material của nó để người chơi dễ nhận biết
+                        if (materialMapping.Count > (int)pack.colorIndex && materialMapping[(int)pack.colorIndex] != null)
+                        {
+                            var renderer = stash.GetComponentInChildren<MeshRenderer>();
+                            if (renderer != null)
+                            {
+                                renderer.material = materialMapping[(int)pack.colorIndex];
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
         if (targetShove == null)
         {
-            Debug.LogWarning("Không tìm thấy Shove trống nào trên băng chuyền để chứa Pack này!");
+            Debug.LogWarning("Không tìm thấy Shove chính/phụ nào trống để chứa Pack này!");
             return;
         }
 
