@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.InputSystem.Controls;
 using Unity.Cinemachine;
 
 public class CameraZoomController : MonoBehaviour
@@ -9,14 +8,16 @@ public class CameraZoomController : MonoBehaviour
     public CinemachineCamera virtualCamera;
 
     [Header("Zoom Settings")]
-    public float zoomSpeed = 0.5f;
-    public float minDistance = 2f;
-    public float maxDistance = 20f;
+    public float zoomSpeed = 5f; 
+    public float minDistance = 1f; // Cho phép zoom gần hơn
+    public float maxDistance = 50f;
     public float smoothSpeed = 10f;
 
     private CinemachineFollow _cinemachineFollow;
-    private Vector3 _defaultOffset;
-    private float _defaultDistance;
+    private Vector3 _defaultOffsetDirection;
+    
+    // Lưu trữ giá trị gốc tuyệt đối
+    private float _initialDistance; 
     private float _targetDistance;
 
     private void Awake()
@@ -27,18 +28,13 @@ public class CameraZoomController : MonoBehaviour
 
             if (_cinemachineFollow != null)
             {
-                _defaultOffset = _cinemachineFollow.FollowOffset;
-                _defaultDistance = _defaultOffset.magnitude;
-                _targetDistance = _defaultDistance;
+                // Bước này cực kỳ quan trọng: Lưu lại "Chân lý" ban đầu
+                _defaultOffsetDirection = _cinemachineFollow.FollowOffset.normalized;
+                _initialDistance = _cinemachineFollow.FollowOffset.magnitude;
+                
+                // Gán target bằng initial để lúc đầu không bị giật camera
+                _targetDistance = _initialDistance;
             }
-            else
-            {
-                Debug.LogError("[CameraZoomController] Không tìm thấy CinemachineFollow trên virtualCamera.");
-            }
-        }
-        else
-        {
-            Debug.LogError("[CameraZoomController] virtualCamera chưa được gán.");
         }
     }
 
@@ -47,10 +43,6 @@ public class CameraZoomController : MonoBehaviour
         HandleZoom();
     }
 
-    /// <summary>
-    /// Giữ chuột phải + kéo lên -> zoom ra, kéo xuống -> zoom vào.
-    /// Thả chuột phải -> camera trở về khoảng cách mặc định ban đầu.
-    /// </summary>
     private void HandleZoom()
     {
         if (_cinemachineFollow == null) return;
@@ -61,21 +53,26 @@ public class CameraZoomController : MonoBehaviour
         if (mouse.rightButton.isPressed)
         {
             Vector2 delta = mouse.delta.ReadValue();
-            // delta.y dương = kéo lên = zoom ra (tăng distance)
-            // delta.y âm   = kéo xuống = zoom vào (giảm distance)
-            _targetDistance -= delta.y * zoomSpeed * 0.01f;
+
+            // Kéo xuống (y âm) -> Giảm distance -> To lên
+            // Kéo lên (y dương) -> Tăng distance -> Nhỏ đi
+            _targetDistance += delta.y * zoomSpeed * 0.01f;
+            
+            // Giới hạn khoảng cách
             _targetDistance = Mathf.Clamp(_targetDistance, minDistance, maxDistance);
         }
-        else
-        {
-            // Thả chuột phải -> trở về khoảng cách mặc định
-            _targetDistance = _defaultDistance;
-        }
 
-        // Nội suy mượt theo hướng offset ban đầu, chỉ thay đổi độ dài
-        Vector3 offsetDirection = _defaultOffset.normalized;
+        // Nội suy từ khoảng cách HIỆN TẠI tới TARGET
         float currentDistance = _cinemachineFollow.FollowOffset.magnitude;
         float newDistance = Mathf.Lerp(currentDistance, _targetDistance, Time.deltaTime * smoothSpeed);
-        _cinemachineFollow.FollowOffset = offsetDirection * newDistance;
+        
+        // Luôn dựa trên hướng Offset gốc để không làm lệch góc nhìn
+        _cinemachineFollow.FollowOffset = _defaultOffsetDirection * newDistance;
+    }
+
+    // Bạn có thể dùng hàm này nếu muốn reset về vị trí "to như lúc đầu" bằng code
+    public void ResetToInitialZoom()
+    {
+        _targetDistance = _initialDistance;
     }
 }
