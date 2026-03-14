@@ -135,13 +135,12 @@ public class GameController : MonoBehaviour
         }
     }
 
-    private async UniTaskVoid RippleExplosionTask(PackBalls pack, Vector3 explosionPos)
+    private async UniTaskVoid RippleExplosionTask(PackBalls pack, Vector3 clickPoint)
     {
-        // Lấy danh sách bóng (không cần sắp xếp nữa vì bung đồng thời)
         var allBalls = pack.balls.Where(b => b != null).ToList();
+        Vector3 packCenter = pack.transform.position; // Gốc của transform cha
         pack.balls.Clear();
 
-        // Bán kính ảnh hưởng tối đa (những quả ngoài tầm này sẽ bung cực nhẹ)
         float maxRadius = config.clickExplosionRadius; 
 
         foreach (GameObject ballObj in allBalls)
@@ -149,20 +148,22 @@ public class GameController : MonoBehaviour
             Ball b = ballObj.GetComponent<Ball>();
             if (b != null)
             {
-                // Tính khoảng cách từ bóng đến tâm click
-                float dist = Vector3.Distance(ballObj.transform.position, explosionPos);
-            
-                // Tính hệ số lực: Gần tâm = 1.0, Xa tâm (>= maxRadius) = 0.1
-                // Dùng AnimationCurve ở đây nếu muốn tinh chỉnh mượt hơn
-                float forcePercent = Mathf.Clamp01(1f - (dist / maxRadius));
-                forcePercent = Mathf.Max(forcePercent, 0.1f); // Đảm bảo quả ở xa vẫn nhích nhẹ
+                // 1. Tính hướng từ GỐC CHA đến QUẢ BÓNG
+                Vector3 dirFromCenter = (ballObj.transform.position - packCenter).normalized;
 
-                // Kích hoạt đồng thời, truyền thêm hệ số lực vào
-                b.BurstAndFall(explosionPos, forcePercent).Forget();
+                // 2. Tính hệ số lực dựa trên khoảng cách từ QUẢ BÓNG đến ĐIỂM CLICK
+                float distToClick = Vector3.Distance(ballObj.transform.position, clickPoint);
+            
+                // forcePercent: gần điểm click = 1.0 (sóng cao nhất), xa dần = 0.1
+                float forcePercent = Mathf.Clamp01(1f - (distToClick / maxRadius));
+                forcePercent = Mathf.Max(forcePercent, 0.1f); 
+
+                // Kích hoạt đồng thời
+                b.BurstAndFall(dirFromCenter, forcePercent).Forget();
             }
         }
 
-        if (pack != null) Destroy(pack.gameObject, 5f);
+        if (pack != null) Destroy(pack.gameObject, 0.5f);
     }
 
     private void ExecuteDisablePack(Vector2 screenPos)
