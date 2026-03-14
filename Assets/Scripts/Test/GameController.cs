@@ -155,7 +155,7 @@ public class GameController : MonoBehaviour
             if (b != null)
             {
                 Vector3 blastDir = (ballObj.transform.position - clickPoint).normalized;
-                blastDir.y += 0.5f; 
+                blastDir.y += 0.2f; 
                 blastDir = blastDir.normalized;
 
                 float distToClick = Vector3.Distance(ballObj.transform.position, clickPoint);

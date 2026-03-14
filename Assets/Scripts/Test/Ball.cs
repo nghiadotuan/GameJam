@@ -14,7 +14,6 @@ public class Ball : MonoBehaviour
     public void ExplodeSimple(Vector3 force)
     {
         if (_isExploded) return;
-        gameObject.layer = LayerMask.NameToLayer("BallFall");
         _isExploded = true;
 
         transform.SetParent(null, true);
@@ -37,6 +36,7 @@ public class Ball : MonoBehaviour
         rb.AddForce(force, ForceMode.Impulse);
 
         MonitorHeightAndRemovePhysics().Forget();
+        gameObject.layer = LayerMask.NameToLayer("BallFall");
     }
 
     private async UniTaskVoid MonitorHeightAndRemovePhysics()
@@ -152,7 +152,7 @@ public class Ball : MonoBehaviour
         }
 
         // Tốc độ nhả đạn (Ví dụ 0.15s sẽ ra nhịp bụp bụp rất đã tai. Bạn có thể cho vào GameConfig)
-        float shootInterval = 0.1f;
+        float shootInterval = 0.068f;
 
         // Cập nhật lại lịch bắn cho quả bóng tới sau
         _nextShootTime = myShootTime + shootInterval;
@@ -185,7 +185,7 @@ public class Ball : MonoBehaviour
                 endPos.y = targetShove.transform.position.y; // Giữ nguyên mặt phẳng đáy của thùng
 
                 float flyDuration = 0.4f; // Bay nhanh dứt khoát
-                float arcHeight = .1f; // Độ cao vòng cung
+                float arcHeight = .068f; // Độ cao vòng cung
 
                 // Thực thi bắn
                 await transform.ShootArcAsync(startPos, endPos, flyDuration, arcHeight, this.GetCancellationTokenOnDestroy());
