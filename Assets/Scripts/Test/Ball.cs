@@ -14,14 +14,16 @@ public class Ball : MonoBehaviour
     private SmallShove _assignedShove;
     private ShoveMovement _targetShoveAfterPipe;
     private bool _hasPipeReservation;
+    private ColorEnum _sourceColor = ColorEnum.None;
 
-    public void ExplodeSimple(Vector3 force, ShoveMovement targetShove = null, bool hasPipeReservation = false)
+    public void ExplodeSimple(Vector3 force, ShoveMovement targetShove = null, bool hasPipeReservation = false, ColorEnum sourceColor = ColorEnum.None)
     {
         if (_isExploded) return;
         _isExploded = true;
         _assignedShove = null;
         _targetShoveAfterPipe = targetShove;
         _hasPipeReservation = hasPipeReservation;
+        _sourceColor = sourceColor;
 
         transform.SetParent(null, true);
 
@@ -189,7 +191,7 @@ public class Ball : MonoBehaviour
         }
 
         // Tốc độ nhả đạn (Ví dụ 0.15s sẽ ra nhịp bụp bụp rất đã tai. Bạn có thể cho vào GameConfig)
-        float shootInterval = 0.068f;
+        float shootInterval = 0.03f;
 
         // Cập nhật lại lịch bắn cho quả bóng tới sau
         _nextShootTime = myShootTime + shootInterval;
@@ -212,77 +214,153 @@ public class Ball : MonoBehaviour
         // ==========================================
         // GIAI ĐOẠN 3: TÌM SLOT PHÙ HỢP SAU KHI ĐI HẾT ỐNG, RỒI BẮN VÀO SHOVE
         // ==========================================
-        ShoveMovement targetShove = _targetShoveAfterPipe;
-        if (targetShove == null && ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
+        ShoveMovement targetShove = ResolveTargetShove();
+        float noReservationTimeout = 1.5f;
+        float noReservationDeadline = Time.time + noReservationTimeout;
+        float reservedSafetyDeadline = Time.time + 8f;
+
+        while (_assignedShove == null && this != null && gameObject != null)
         {
-            targetShove = ShoveContainer.Instance.shoveList[0];
-        }
-
-        if (targetShove != null)
-        {
-            float waitSlotTimeout = 0.5f;
-            float deadline = Time.time + waitSlotTimeout;
-
-            while (_assignedShove == null && Time.time <= deadline && this != null && gameObject != null)
+            if (!IsShoveStillUsable(targetShove))
             {
-                foreach (var s in targetShove.GetComponentsInChildren<SmallShove>())
+                if (_hasPipeReservation && _targetShoveAfterPipe != null)
                 {
-                    if (s.PendingBallCount + s.CurrentBallCount < s.NumBallFull)
-                    {
-                        _assignedShove = s;
-                        break;
-                    }
-                }
-
-                if (_assignedShove == null)
-                {
-                    await UniTask.Yield(PlayerLoopTiming.Update);
-                }
-            }
-
-            if (_assignedShove != null)
-            {
-                if (_hasPipeReservation)
-                {
-                    targetShove.ReleaseInPipeBall();
+                    _targetShoveAfterPipe.ReleaseInPipeBall();
                     _hasPipeReservation = false;
                 }
 
-                _assignedShove.PendingBallCount++;
+                targetShove = ResolveTargetShove();
 
-                Vector3 startPos = transform.position;
-                Transform endTarget = _assignedShove.GetPosTransform();
-
-                float flyDuration = 0.4f; // Bay nhanh dứt khoát
-                float arcHeight = .068f; // Độ cao vòng cung
-
-                // Thực thi bắn bám theo mục tiêu (đích di động)
-                await transform.ShootArcAsync(startPos, endTarget, flyDuration, arcHeight, this.GetCancellationTokenOnDestroy());
-
-                if (this != null && gameObject != null && targetShove != null)
+                if (!_hasPipeReservation && targetShove != null)
                 {
-                    // Xét Parent và reset Local Position tĩnh để bay theo thùng Shove an toàn
-                    transform.SetParent(endTarget); // Làm con trực tiếp của cái transform cục bộ luôn để cứng ngắt
-                    transform.localPosition = Vector3.zero;
-
-                    _assignedShove.ReceiveBall();
-                }
-                else if (_assignedShove.PendingBallCount > 0)
-                {
-                    _assignedShove.PendingBallCount--;
+                    _hasPipeReservation = targetShove.TryReserveInPipeBall();
+                    if (_hasPipeReservation)
+                    {
+                        _targetShoveAfterPipe = targetShove;
+                        reservedSafetyDeadline = Time.time + 8f;
+                    }
                 }
             }
-            else
+
+            if (TryGetAvailableSmallShove(targetShove, out SmallShove slot))
             {
-                ReleasePipeReservation();
-                Debug.LogWarning("Ball đi hết ống nhưng chưa có slot SmallShove trống sau thời gian chờ an toàn.");
+                _assignedShove = slot;
+                break;
+            }
+
+            if (!_hasPipeReservation && Time.time > noReservationDeadline)
+            {
+                break;
+            }
+
+            if (_hasPipeReservation && Time.time > reservedSafetyDeadline)
+            {
+                break;
+            }
+
+            await UniTask.Yield(PlayerLoopTiming.Update);
+        }
+
+        if (_assignedShove != null)
+        {
+            if (_hasPipeReservation)
+            {
+                targetShove.ReleaseInPipeBall();
+                _hasPipeReservation = false;
+            }
+
+            _assignedShove.PendingBallCount++;
+
+            Vector3 startPos = transform.position;
+            Transform endTarget = _assignedShove.GetPosTransform();
+
+            float flyDuration = 0.4f; // Bay nhanh dứt khoát
+            float arcHeight = .068f; // Độ cao vòng cung
+
+            // Thực thi bắn bám theo mục tiêu (đích di động)
+            await transform.ShootArcAsync(startPos, endTarget, flyDuration, arcHeight, this.GetCancellationTokenOnDestroy());
+
+            if (this != null && gameObject != null)
+            {
+                // Xét Parent và reset Local Position tĩnh để bay theo thùng Shove an toàn
+                transform.SetParent(endTarget); // Làm con trực tiếp của cái transform cục bộ luôn để cứng ngắt
+                transform.localPosition = Vector3.zero;
+
+                _assignedShove.ReceiveBall();
+            }
+            else if (_assignedShove.PendingBallCount > 0)
+            {
+                _assignedShove.PendingBallCount--;
             }
         }
         else
         {
             ReleasePipeReservation();
-            Debug.LogWarning("Ball đi hết ống nhưng không có Shove mục tiêu hợp lệ.");
+            Debug.LogWarning("Ball đi hết ống nhưng chưa tìm được slot bắn phù hợp trong thời gian chờ.");
         }
+    }
+
+    private bool TryGetAvailableSmallShove(ShoveMovement targetShove, out SmallShove slot)
+    {
+        slot = null;
+        if (targetShove == null || !IsShoveColorCompatible(targetShove)) return false;
+
+        foreach (var s in targetShove.GetComponentsInChildren<SmallShove>())
+        {
+            if (s != null && s.PendingBallCount + s.CurrentBallCount < s.NumBallFull)
+            {
+                slot = s;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private ShoveMovement ResolveTargetShove()
+    {
+        if (IsShoveStillUsable(_targetShoveAfterPipe) && IsShoveColorCompatible(_targetShoveAfterPipe)) return _targetShoveAfterPipe;
+
+        if (GameController.Instance != null && GameController.Instance.isTransferringStash)
+        {
+            ShoveMovement transferMainShove = GameController.Instance.currentTransferMainShove;
+            if (IsShoveStillUsable(transferMainShove) && IsShoveColorCompatible(transferMainShove)) return transferMainShove;
+        }
+
+        if (ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
+        {
+            int maxShovesToCheck = Mathf.Min(2, ShoveContainer.Instance.shoveList.Count);
+            for (int i = 0; i < maxShovesToCheck; i++)
+            {
+                ShoveMovement candidate = ShoveContainer.Instance.shoveList[i];
+                if (IsShoveStillUsable(candidate) && IsShoveColorCompatible(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private bool IsShoveColorCompatible(ShoveMovement shove)
+    {
+        if (shove == null) return false;
+        if (_sourceColor == ColorEnum.None) return true;
+
+        ColorEnum shoveColor = shove.TargetColor;
+        if (shoveColor == ColorEnum.None)
+        {
+            Shove shoveComp = shove.GetComponent<Shove>();
+            if (shoveComp != null) shoveColor = shoveComp.Color;
+        }
+
+        return shoveColor == _sourceColor;
+    }
+
+    private bool IsShoveStillUsable(ShoveMovement shove)
+    {
+        return shove != null && shove.gameObject != null && shove.gameObject.activeInHierarchy;
     }
 
     private void ReleasePipeReservation()

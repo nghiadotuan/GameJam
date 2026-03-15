@@ -5,15 +5,15 @@ using UnityEngine;
 
 public class SmallShove : MonoBehaviour
 {
-    public int NumBallFull { get; set; }
+    [ShowInInspector]public int NumBallFull { get; set; }
     public List<Transform> ListPosBall;
     public int IndexPosBall { get; set; }
-    
-    public int CurrentBallCount { get; set; }
-    public int PendingBallCount { get; set; }
+
+    [ShowInInspector] public int CurrentBallCount { get; set; }
+    [ShowInInspector] public int PendingBallCount { get; set; }
     public System.Action<SmallShove> OnShoveFull;
 
-    public bool IsFull => (CurrentBallCount + PendingBallCount) >= NumBallFull;
+    [ShowInInspector] public bool IsFull => (CurrentBallCount + PendingBallCount) >= NumBallFull;
 
     [Button]
     private void SetListPosBall()
@@ -32,6 +32,7 @@ public class SmallShove : MonoBehaviour
             IndexPosBall++;
             return ListPosBall[0];
         }
+
         if (IsOverPos) return transform;
         var posTrf = ListPosBall[IndexPosBall];
         IndexPosBall++;
@@ -42,7 +43,7 @@ public class SmallShove : MonoBehaviour
     {
         if (PendingBallCount > 0) PendingBallCount--;
         CurrentBallCount++;
-        
+
         if (CurrentBallCount >= NumBallFull && NumBallFull > 0)
         {
             OnShoveFull?.Invoke(this);
