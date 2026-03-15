@@ -232,6 +232,37 @@ public class GameController : MonoBehaviour
             }
         }
 
+        // 1.25. Nếu xe cùng màu đã hết capacity hiện tại nhưng vẫn còn SmallShove trống chưa gán,
+        // thì pack này sẽ gán capacity cho đúng 1 SmallShove trống đó.
+        if (targetShove == null && ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
+        {
+            int maxShovesToCheck = Mathf.Min(2, ShoveContainer.Instance.shoveList.Count);
+            for (int i = 0; i < maxShovesToCheck; i++)
+            {
+                var shove = ShoveContainer.Instance.shoveList[i];
+                Shove shoveComp = shove.GetComponent<Shove>();
+                if (shoveComp == null || shoveComp.Color != pack.colorIndex) continue;
+
+                bool hasEmptySmallShove = false;
+                foreach (var s in shove.GetComponentsInChildren<SmallShove>())
+                {
+                    if (s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0)
+                    {
+                        hasEmptySmallShove = true;
+                        break;
+                    }
+                }
+
+                if (hasEmptySmallShove)
+                {
+                    targetShove = shove;
+                    targetShove.TargetColor = pack.colorIndex;
+                    isFirstPackForShove = true;
+                    break;
+                }
+            }
+        }
+
         // ƯU TIÊN 1.5: KIỂM TRA TRONG STASH XEM CÓ XE NÀO CÙNG MÀU MÀ VẪN CÒN CHỖ KHÔNG
         if (targetShove == null && stashShoves != null)
         {
@@ -258,6 +289,34 @@ public class GameController : MonoBehaviour
                         targetShove.TargetColor = pack.colorIndex;
                         break;
                     }
+                }
+            }
+        }
+
+        // 1.75. Tương tự cho stash cùng màu: còn SmallShove trống thì pack mới chỉ gán cho 1 SmallShove.
+        if (targetShove == null && stashShoves != null)
+        {
+            foreach (var stash in stashShoves)
+            {
+                Shove stashShoveComp = stash.GetComponent<Shove>();
+                if (stashShoveComp == null || stashShoveComp.Color != pack.colorIndex) continue;
+
+                bool hasEmptySmallShove = false;
+                foreach (var s in stash.GetComponentsInChildren<SmallShove>())
+                {
+                    if (s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0)
+                    {
+                        hasEmptySmallShove = true;
+                        break;
+                    }
+                }
+
+                if (hasEmptySmallShove)
+                {
+                    targetShove = stash;
+                    targetShove.TargetColor = pack.colorIndex;
+                    isFirstPackForShove = true;
+                    break;
                 }
             }
         }
@@ -331,45 +390,29 @@ public class GameController : MonoBehaviour
         if (targetShove != null && isFirstPackForShove)
         {
             SmallShove[] smallShoves = targetShove.GetComponentsInChildren<SmallShove>();
-            PackBalls ownerPack = null;
 
-            if (!pack.IsOwner)
+            SmallShove targetSmallShove = null;
+            foreach (var ss in smallShoves)
             {
-                ownerPack = pack;
-                pack.IsOwner = true;
-            }
-            else
-            {
-                PackBalls[] allPacks = Object.FindObjectsByType<PackBalls>(FindObjectsSortMode.None);
-                foreach (var p in allPacks)
+                if (ss.NumBallFull == 0 && ss.CurrentBallCount == 0 && ss.PendingBallCount == 0)
                 {
-                    if (p.colorIndex == pack.colorIndex && !p.IsOwner && p.balls.Count > 0)
-                    {
-                        ownerPack = p;
-                        p.IsOwner = true;
-                        break;
-                    }
+                    targetSmallShove = ss;
+                    break;
                 }
             }
 
-            int totalCapacityToSet = ownerPack != null ? ownerPack.balls.Count : sortedBalls.Count; 
-
-            int emptyCount = smallShoves.Length;
-            if (emptyCount > 0)
+            if (targetSmallShove != null)
             {
-                int baseCap = totalCapacityToSet / emptyCount;
-                int remainder = totalCapacityToSet % emptyCount;
+                int packCapacity = sortedBalls.Count;
+                targetSmallShove.NumBallFull = packCapacity;
 
-                for (int i = 0; i < smallShoves.Length; i++)
+                if (targetSmallShove.NumBallFull > 0 && targetSmallShove.NumBallFull <= targetSmallShove.ListPosBall.Count)
                 {
-                    int cap = baseCap + (i == smallShoves.Length - 1 ? remainder : 0);
-                    // Cho phép sức chứa logic lớn hơn số Pos hiển thị (không khóa cứng theo số slot mesh).
-                    smallShoves[i].NumBallFull = cap;
-                    
-                    if (smallShoves[i].NumBallFull > 0 && smallShoves[i].NumBallFull <= smallShoves[i].ListPosBall.Count)
-                        smallShoves[i].IndexPosBall = smallShoves[i].ListPosBall.Count - smallShoves[i].NumBallFull;
-                    else
-                        smallShoves[i].IndexPosBall = 0;
+                    targetSmallShove.IndexPosBall = targetSmallShove.ListPosBall.Count - targetSmallShove.NumBallFull;
+                }
+                else
+                {
+                    targetSmallShove.IndexPosBall = 0;
                 }
             }
         }

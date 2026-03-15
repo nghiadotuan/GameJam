@@ -5,7 +5,7 @@ using UnityEngine;
 
 public class SmallShove : MonoBehaviour
 {
-    [ShowInInspector]public int NumBallFull { get; set; }
+    [ShowInInspector] public int NumBallFull { get; set; }
     public List<Transform> ListPosBall;
     public int IndexPosBall { get; set; }
 
@@ -33,7 +33,7 @@ public class SmallShove : MonoBehaviour
             return ListPosBall[0];
         }
 
-        if (IsOverPos) return transform;
+        if (IsOverPos) return ListPosBall[^1];
         var posTrf = ListPosBall[IndexPosBall];
         IndexPosBall++;
         return posTrf;
