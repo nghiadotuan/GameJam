@@ -64,13 +64,14 @@ public class ShoveMovement : MonoBehaviour
         foreach (var ss in _smallShoves)
         {
             // Chỉ xem là full khi bóng đã đáp thật sự, không tính pending đang bay.
-            if (ss == null || ss.NumBallFull == 0 || ss.CurrentBallCount < ss.NumBallFull)
+            if (ss == null || ss.NumBallFull == 0 || ss.CurrentBallCount < ss.NumBallFull || ss.PendingBallCount > 0)
             {
                 return false;
             }
         }
 
-        return true;
+        // Không cho move-out nếu vẫn còn bóng đã reserve đang đi trong ống tới shove này.
+        return _inPipeBallCount <= 0;
     }
 
     public bool TryReserveInPipeBall()

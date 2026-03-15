@@ -65,6 +65,7 @@ public class GameController : MonoBehaviour
     private int _moveOutCount;
     private bool _hasLoggedWin;
     private bool _hasLoggedLose;
+    private float _nextStashTransferCheckTime;
 
     public bool IsHoldingBall => currentState == InputState.PackDisabled;
 
@@ -102,6 +103,13 @@ public class GameController : MonoBehaviour
     {
         HandleInputState();
         HandleReloadScene();
+
+        // Poll nhẹ để stash tự đẩy bóng sang main khi có small phù hợp trống.
+        if (!isTransferringStash && Time.time >= _nextStashTransferCheckTime)
+        {
+            _nextStashTransferCheckTime = Time.time + 0.08f;
+            TryTransferStashToMainAsync().Forget();
+        }
     }
 
     private void HandleReloadScene()
@@ -567,10 +575,14 @@ public class GameController : MonoBehaviour
         if (isTransferringStash) return;
 
         ShoveMovement targetMainShove = null;
+        SmallShove targetMainSmallShove = null;
         SmallShove sourceStashSmallShove = null;
         ColorEnum transferColor = ColorEnum.None;
+        SmallShove partialSourceCandidate = null;
+        ColorEnum partialSourceColor = ColorEnum.None;
 
-        // 1. Tìm 1 SmallShove trong stash đã FULL (mỗi small độc lập theo màu riêng)
+        // 1. Tìm source small trong stash:
+        //    Ưu tiên small đã FULL, nếu chưa có thì lấy small có bóng (>0) để đẩy dần liên tục.
         foreach (var stash in stashShoves)
         {
             if (stash == null) continue;
@@ -585,20 +597,34 @@ public class GameController : MonoBehaviour
                     transferColor = ss.SlotColor;
                     break;
                 }
+
+                if (partialSourceCandidate == null && ss.CurrentBallCount > 0)
+                {
+                    partialSourceCandidate = ss;
+                    partialSourceColor = ss.SlotColor;
+                }
             }
 
             if (sourceStashSmallShove != null) break;
         }
 
+        if (sourceStashSmallShove == null && partialSourceCandidate != null)
+        {
+            sourceStashSmallShove = partialSourceCandidate;
+            transferColor = partialSourceColor;
+        }
+
         if (sourceStashSmallShove == null || transferColor == ColorEnum.None) return;
 
-        // 2. Nếu có Stash FULL, tìm trong xe đầu băng chuyền:
-        //    Ưu tiên 1: xe trống CÙNG MÀU với stash
-        //    Ưu tiên 2: xe trống MÀU XÁM (None) → gán màu stash cho nó
+        // 2. Tìm target small ở xe đầu:
+        //    Ưu tiên 1: small đã gán đúng màu + đúng pack và còn chỗ.
+        //    Ưu tiên 2: small trống trong shove cùng màu.
+        //    Ưu tiên 3: small trống trong shove xám.
         if (ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
         {
             int maxShovesToCheck = Mathf.Min(1, ShoveContainer.Instance.shoveList.Count);
-            ShoveMovement grayFallback = null;
+            ShoveMovement grayFallbackShove = null;
+            SmallShove grayFallbackSmall = null;
 
             for (int i = 0; i < maxShovesToCheck; i++)
             {
@@ -606,42 +632,55 @@ public class GameController : MonoBehaviour
                 Shove mainShoveComp = mainShove.GetComponent<Shove>();
                 if (mainShoveComp == null) continue;
 
-                bool isMainEmpty = true;
+                SmallShove emptySmall = null;
                 foreach (var ss in mainShove.GetComponentsInChildren<SmallShove>())
                 {
-                    if (ss.NumBallFull > 0 || ss.CurrentBallCount > 0 || ss.PendingBallCount > 0 || mainShove.InPipeBallCount > 0)
+                    // Case tốt nhất: small đã cùng màu + cùng pack và còn capacity.
+                    if (ss.NumBallFull > 0 &&
+                        ss.SlotColor == transferColor &&
+                        ss.SlotPackRef == sourceStashSmallShove.SlotPackRef &&
+                        (ss.CurrentBallCount + ss.PendingBallCount) < ss.NumBallFull)
                     {
-                        isMainEmpty = false;
+                        targetMainShove = mainShove;
+                        targetMainSmallShove = ss;
+                        break;
+                    }
+
+                    if (ss.NumBallFull == 0 && ss.CurrentBallCount == 0 && ss.PendingBallCount == 0 && ss.SlotPackRef == null)
+                    {
+                        emptySmall = ss;
                         break;
                     }
                 }
 
-                if (!isMainEmpty) continue;
+                if (targetMainSmallShove != null) break;
+
+                if (emptySmall == null) continue;
 
                 if (mainShoveComp.Color == transferColor)
                 {
-                    // Ưu tiên 1: cùng màu → chọn luôn
                     targetMainShove = mainShove;
+                    targetMainSmallShove = emptySmall;
                     break;
                 }
 
-                if (mainShoveComp.Color == ColorEnum.None && grayFallback == null)
+                if (mainShoveComp.Color == ColorEnum.None && grayFallbackShove == null)
                 {
-                    // Ưu tiên 2: xe xám trống → lưu lại làm fallback
-                    grayFallback = mainShove;
+                    grayFallbackShove = mainShove;
+                    grayFallbackSmall = emptySmall;
                 }
             }
 
-            // Nếu không tìm được xe cùng màu, dùng xe xám trống và gán màu stash
-            if (targetMainShove == null && grayFallback != null)
+            if (targetMainShove == null && grayFallbackShove != null)
             {
-                targetMainShove = grayFallback;
+                targetMainShove = grayFallbackShove;
+                targetMainSmallShove = grayFallbackSmall;
                 Shove grayComp = targetMainShove.GetComponent<Shove>();
                 if (grayComp != null) grayComp.Color = transferColor;
             }
         }
 
-        if (targetMainShove == null) return;
+        if (targetMainShove == null || targetMainSmallShove == null) return;
 
         isTransferringStash = true;
         currentTransferMainShove = targetMainShove;
@@ -650,38 +689,36 @@ public class GameController : MonoBehaviour
         Shove mainTargetShoveComp = targetMainShove.GetComponent<Shove>();
         if (mainTargetShoveComp != null) mainTargetShoveComp.Color = transferColor;
 
-        SmallShove[] mainSmallShoves = targetMainShove.GetComponentsInChildren<SmallShove>();
+        List<Ball> ballsInSource = sourceStashSmallShove.GetComponentsInChildren<Ball>().ToList();
+        int transferLimit = ballsInSource.Count;
 
-        List<Ball> ballsToTransfer = sourceStashSmallShove.GetComponentsInChildren<Ball>().ToList();
+        bool isExistingCompatibleTarget =
+            targetMainSmallShove.NumBallFull > 0 &&
+            targetMainSmallShove.SlotColor == transferColor &&
+            targetMainSmallShove.SlotPackRef == sourceStashSmallShove.SlotPackRef;
 
-        // Chừa chỗ cho các ball đã reserve và đang đi trong ống vào main shove này.
-        int totalBalls = ballsToTransfer.Count + targetMainShove.InPipeBallCount;
-        int emptyCount = mainSmallShoves.Length;
-        
-        if (emptyCount > 0)
+        if (isExistingCompatibleTarget)
         {
-            int baseCap = totalBalls / emptyCount;
-            int remainder = totalBalls % emptyCount;
-
-            for (int i = 0; i < mainSmallShoves.Length; i++)
-            {
-                int cap = baseCap + (i == mainSmallShoves.Length - 1 ? remainder : 0);
-                mainSmallShoves[i].NumBallFull = cap;
-                mainSmallShoves[i].SlotColor = transferColor;
-                mainSmallShoves[i].SlotPackRef = sourceStashSmallShove.SlotPackRef;
-                mainSmallShoves[i].CurrentBallCount = 0;
-                mainSmallShoves[i].PendingBallCount = 0; 
-                
-                if (cap > mainSmallShoves[i].ListPosBall.Count)
-                    mainSmallShoves[i].IndexPosBall = mainSmallShoves[i].ListPosBall.Count - cap;
-                else
-                    mainSmallShoves[i].IndexPosBall = 0;
-            }
+            int remainCapacity = targetMainSmallShove.NumBallFull - (targetMainSmallShove.CurrentBallCount + targetMainSmallShove.PendingBallCount);
+            transferLimit = Mathf.Min(transferLimit, Mathf.Max(0, remainCapacity));
+        }
+        else
+        {
+            int totalBalls = ballsInSource.Count;
+            targetMainSmallShove.NumBallFull = totalBalls;
+            targetMainSmallShove.SlotColor = transferColor;
+            targetMainSmallShove.SlotPackRef = sourceStashSmallShove.SlotPackRef;
+            targetMainSmallShove.CurrentBallCount = 0;
+            targetMainSmallShove.PendingBallCount = 0;
+            if (totalBalls > targetMainSmallShove.ListPosBall.Count)
+                targetMainSmallShove.IndexPosBall = targetMainSmallShove.ListPosBall.Count - totalBalls;
+            else
+                targetMainSmallShove.IndexPosBall = 0;
         }
 
-        // Tạo danh sách nhóm bóng theo small nguồn (ở đây chỉ có 1 small đầy)
-        List<List<Ball>> stashBallsGrouped = new List<List<Ball>>();
-        stashBallsGrouped.Add(ballsToTransfer.ToList());
+        if (transferLimit <= 0) return;
+
+        List<Ball> ballsToTransfer = ballsInSource.Take(transferLimit).ToList();
 
         foreach (var b in ballsToTransfer)
         {
@@ -689,52 +726,32 @@ public class GameController : MonoBehaviour
         }
 
         List<UniTask> allTransferTasks = new List<UniTask>();
-
-        bool hasBalls = true;
-        while (hasBalls)
+        const float stashTransferFlyDuration = 0.12f;
+        foreach (var ball in ballsToTransfer)
         {
-            hasBalls = false;
-            List<UniTask> batchTasks = new List<UniTask>();
+            if (ball == null) continue;
 
-            // Mỗi vòng lặp, rút đúng 1 quả bóng từ mỗi SmallShove trong Gara Stash để bắn cùng lúc
-            for (int i = 0; i < stashBallsGrouped.Count; i++)
+            if (targetMainSmallShove.IsFull) break;
+
+            if (!targetMainSmallShove.TryLockForBall(ball.SourceColor, ball.SourcePack))
             {
-                if (stashBallsGrouped[i].Count > 0)
-                {
-                    hasBalls = true;
-                    Ball ball = stashBallsGrouped[i][0];
-                    stashBallsGrouped[i].RemoveAt(0);
-
-                    if (ball == null) continue;
-
-                    SmallShove assignedShove = null;
-                    foreach (var s in mainSmallShoves)
-                    {
-                        if (!s.IsFull)
-                        {
-                            assignedShove = s;
-                            s.PendingBallCount++;
-                            break;
-                        }
-                    }
-
-                    if (assignedShove != null)
-                    {
-                        batchTasks.Add(ball.TransferToShoveAsync(assignedShove));
-                    }
-                }
+                Debug.LogWarning($"[StashTransfer] Skip ball {ball.name}: target small lock fail (Color={ball.SourceColor}).");
+                continue;
             }
 
-            if (batchTasks.Count > 0)
-            {
-                allTransferTasks.AddRange(batchTasks);
-                await UniTask.Delay(System.TimeSpan.FromSeconds(0.12f)); 
-            }
+            targetMainSmallShove.PendingBallCount++;
+            allTransferTasks.Add(ball.TransferToShoveAsync(targetMainSmallShove, stashTransferFlyDuration));
         }
 
         await UniTask.WhenAll(allTransferTasks);
 
-        sourceStashSmallShove.ResetShove();
+        int remainInSource = sourceStashSmallShove.GetComponentsInChildren<Ball>().Length;
+        sourceStashSmallShove.CurrentBallCount = remainInSource;
+        sourceStashSmallShove.PendingBallCount = 0;
+        if (remainInSource <= 0)
+        {
+            sourceStashSmallShove.ResetShove();
+        }
 
         currentTransferMainShove = null;
         isTransferringStash = false;

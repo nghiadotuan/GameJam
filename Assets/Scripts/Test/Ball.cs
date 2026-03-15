@@ -316,25 +316,17 @@ public class Ball : MonoBehaviour
         slot = null;
         if (targetShove == null || !IsShoveColorCompatible(targetShove)) return false;
 
-        bool isStashShove = GameController.Instance != null && GameController.Instance.stashShoves != null && GameController.Instance.stashShoves.Contains(targetShove);
-
         foreach (var s in targetShove.GetComponentsInChildren<SmallShove>())
         {
             if (s == null) continue;
 
-            if (isStashShove)
-            {
-                if (s.SlotColor != _sourceColor) continue;
-            }
-
-            if (!s.CanAcceptBall(_sourceColor, _sourcePack)) continue;
+            // Điều kiện cứng: slot phải thuộc đúng màu + đúng pack ref của quả bóng này.
+            if (s.NumBallFull <= 0) continue;
+            if (s.SlotColor != _sourceColor) continue;
+            if (s.SlotPackRef != _sourcePack) continue;
 
             if (s.PendingBallCount + s.CurrentBallCount < s.NumBallFull)
             {
-                if (!s.TryLockForBall(_sourceColor, _sourcePack))
-                {
-                    continue;
-                }
 
                 slot = s;
                 return true;
@@ -379,7 +371,7 @@ public class Ball : MonoBehaviour
         {
             foreach (var s in shove.GetComponentsInChildren<SmallShove>())
             {
-                if (s != null && s.NumBallFull > 0 && s.CanAcceptBall(_sourceColor, _sourcePack))
+                if (s != null && s.NumBallFull > 0 && s.SlotColor == _sourceColor && s.SlotPackRef == _sourcePack)
                 {
                     return true;
                 }
@@ -440,16 +432,17 @@ public class Ball : MonoBehaviour
         }
     }
 
-    public async UniTask TransferToShoveAsync(SmallShove targetShove)
+    public async UniTask TransferToShoveAsync(SmallShove targetShove, float flyDuration = 0.4f)
     {
         if (targetShove == null || this == null || gameObject == null) return;
+
+        if (!targetShove.TryLockForBall(_sourceColor, _sourcePack)) return;
 
         _assignedShove = targetShove;
 
         Vector3 startPos = transform.position;
         Transform endTarget = _assignedShove.GetPosTransform();
-        
-        float flyDuration = 0.4f;
+
         float arcHeight = 0.068f;
 
         // Bắn vòng cung thẳng vào mục tiêu

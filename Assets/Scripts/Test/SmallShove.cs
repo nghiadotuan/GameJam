@@ -78,6 +78,20 @@ public class SmallShove : MonoBehaviour
         ColorEnum incomingColor = incomingBall != null ? incomingBall.SourceColor : ColorEnum.None;
         PackBalls incomingPack = incomingBall != null ? incomingBall.SourcePack : null;
 
+        if (SlotPackRef != null && incomingPack == null)
+        {
+            if (PendingBallCount > 0) PendingBallCount--;
+            Debug.LogError($"[SmallShove] Reject ball without pack ref. Slot={name}, LockedPack={SlotPackRef.name}");
+            return;
+        }
+
+        if (SlotColor != ColorEnum.None && incomingColor == ColorEnum.None)
+        {
+            if (PendingBallCount > 0) PendingBallCount--;
+            Debug.LogError($"[SmallShove] Reject ball without color. Slot={name}, LockedColor={SlotColor}");
+            return;
+        }
+
         if (incomingPack != null)
         {
             if (SlotPackRef == null)

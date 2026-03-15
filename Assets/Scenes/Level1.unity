@@ -13474,7 +13474,6 @@ GameObject:
   - component: {fileID: 411512424}
   - component: {fileID: 411512423}
   - component: {fileID: 411512422}
-  - component: {fileID: 411512420}
   m_Layer: 6
   m_Name: Small_Shove_1
   m_TagString: Untagged
@@ -13482,55 +13481,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &411512420
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 411512419}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4251a2de513046ff807fc73ff9eb88a1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SmallShove
-  ListPosBall:
-  - {fileID: 478261636}
-  - {fileID: 906848022}
-  - {fileID: 603016436}
-  - {fileID: 192020095}
-  - {fileID: 903085730}
-  - {fileID: 1818175183}
-  - {fileID: 854809465}
-  - {fileID: 1703633664}
-  - {fileID: 1221730533}
-  - {fileID: 318341474}
-  - {fileID: 620657197}
-  - {fileID: 1661591471}
-  - {fileID: 1382089241}
-  - {fileID: 1002552845}
-  - {fileID: 1031756267}
-  - {fileID: 1152298741}
-  - {fileID: 635011615}
-  - {fileID: 1614594178}
-  - {fileID: 1217800141}
-  - {fileID: 1336268416}
-  - {fileID: 2077744887}
-  - {fileID: 388490404}
-  - {fileID: 655627276}
-  - {fileID: 1791742387}
-  - {fileID: 754457734}
-  - {fileID: 1685757758}
-  - {fileID: 1908902587}
-  - {fileID: 786240790}
-  - {fileID: 1180816755}
-  - {fileID: 321966861}
-  - {fileID: 998020924}
-  - {fileID: 1098196024}
-  - {fileID: 1392562313}
-  - {fileID: 1914396672}
-  - {fileID: 1588893931}
-  - {fileID: 1596570071}
 --- !u!4 &411512421
 Transform:
   m_ObjectHideFlags: 0
@@ -39251,7 +39201,7 @@ MonoBehaviour:
   ListSmallShove:
   - {fileID: 966855556}
   - {fileID: 227608328}
-  - {fileID: 411512420}
+  - {fileID: 0}
 --- !u!23 &866272018
 MeshRenderer:
   m_ObjectHideFlags: 0
