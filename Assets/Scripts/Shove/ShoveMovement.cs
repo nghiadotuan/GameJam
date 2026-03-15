@@ -4,8 +4,10 @@ public class ShoveMovement : MonoBehaviour
 {
     private bool _isMovingOut = false;
     private SmallShove[] _smallShoves;
+    private int _inPipeBallCount;
     
     public ColorEnum TargetColor { get; set; } = ColorEnum.None;
+    public int InPipeBallCount => _inPipeBallCount;
 
     private void Start()
     {
@@ -31,17 +33,7 @@ public class ShoveMovement : MonoBehaviour
     {
         if (_isMovingOut) return;
 
-        bool allFull = true;
-        foreach (var ss in _smallShoves)
-        {
-            // Phải check số lượng bóng THỰC TẾ đã rơi vào (CurrentBallCount)
-            // Thay vì IsFull (bị dính cả PendingBallCount của những quả đang bay)
-            if (ss.CurrentBallCount < ss.NumBallFull || ss.NumBallFull == 0)
-            {
-                allFull = false;
-                break;
-            }
-        }
+        bool allFull = IsCompletelyFull();
 
         if (allFull)
         {
@@ -57,9 +49,59 @@ public class ShoveMovement : MonoBehaviour
         }
     }
 
+    public bool IsCompletelyFull()
+    {
+        if (_smallShoves == null || _smallShoves.Length == 0)
+        {
+            _smallShoves = GetComponentsInChildren<SmallShove>();
+        }
+
+        foreach (var ss in _smallShoves)
+        {
+            // Chỉ xem là full khi bóng đã đáp thật sự, không tính pending đang bay.
+            if (ss == null || ss.NumBallFull == 0 || ss.CurrentBallCount < ss.NumBallFull)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public bool TryReserveInPipeBall()
+    {
+        if (_isMovingOut) return false;
+
+        if (_smallShoves == null || _smallShoves.Length == 0)
+        {
+            _smallShoves = GetComponentsInChildren<SmallShove>();
+        }
+
+        int totalCapacity = 0;
+        int usedSlots = 0;
+        foreach (var ss in _smallShoves)
+        {
+            if (ss == null) continue;
+            totalCapacity += ss.NumBallFull;
+            usedSlots += ss.CurrentBallCount + ss.PendingBallCount;
+        }
+
+        if (totalCapacity <= 0) return false;
+        if (usedSlots + _inPipeBallCount >= totalCapacity) return false;
+
+        _inPipeBallCount++;
+        return true;
+    }
+
+    public void ReleaseInPipeBall()
+    {
+        if (_inPipeBallCount > 0) _inPipeBallCount--;
+    }
+
     public void ResetToEmpty()
     {
         TargetColor = ColorEnum.None;
+        _inPipeBallCount = 0;
         
         Shove shoveComp = GetComponent<Shove>();
         if (shoveComp != null) shoveComp.Color = ColorEnum.None;
@@ -89,6 +131,7 @@ public class ShoveMovement : MonoBehaviour
 
     public void ApplyMaterial()
     {
+        GameController.Instance = FindAnyObjectByType<GameController>();
         if (GameController.Instance == null || GameController.Instance.materialMapping == null || GameController.Instance.materialMapping.Count == 0) return;
 
         int index = (int)TargetColor;
@@ -99,9 +142,9 @@ public class ShoveMovement : MonoBehaviour
 
         // Quét toàn bộ MeshRenderer trong Shove (Bao gồm vỏ xe và cỏ của nó, hoặc các họng nhỏ)
         MeshRenderer[] renderers = GetComponentsInChildren<MeshRenderer>();
+        Debug.Log(index + "   "+ TargetColor + "   "+ renderers.Length);
         foreach (var r in renderers)
         {
-            if (r.gameObject.name.Contains("IgnoreColor")) continue; // Bỏ qua các object có tên chứa "IgnoreColor"
             r.material = mat;
         }
     }
@@ -130,10 +173,11 @@ public class ShoveMovement : MonoBehaviour
             if (Vector3.Distance(transform.position, targetPos) <= 0.001f)
             {
                 _isMovingOut = false;
-                
-                Debug.Log($"{gameObject.name} đã đi đến điểm End Shove!");
-                // Xử lý logic tiếp theo của bạn ở đây (Ví dụ: Destroy, gỡ bóng, ghi điểm...)
-                // Destroy(gameObject); 
+
+                if (GameController.Instance != null)
+                {
+                    GameController.Instance.RegisterShoveMoveOut();
+                }
             }
         }
     }

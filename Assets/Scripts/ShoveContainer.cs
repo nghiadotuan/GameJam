@@ -95,6 +95,8 @@ public class ShoveContainer : MonoBehaviour
         if (Mathf.Abs(headShove.transform.position.x) <= 0.001f)
         {
             currentState = ContainerState.Stop;
+
+            TryTriggerMoveOutIfFrontFull();
             
             // Kích hoạt check xem có rác ở Stash cần đổ vào xe mới tới không
             if (GameController.Instance != null)
@@ -108,6 +110,17 @@ public class ShoveContainer : MonoBehaviour
     public void TriggerMoveOutFrontShove()
     {
         TriggerMoveOutFrontShoveAsync().Forget();
+    }
+
+    public void TryTriggerMoveOutIfFrontFull()
+    {
+        if (_isTriggeringMoveOut || currentState != ContainerState.Stop || shoveList == null || shoveList.Count == 0) return;
+
+        ShoveMovement frontShove = shoveList[0];
+        if (frontShove != null && frontShove.IsCompletelyFull())
+        {
+            TriggerMoveOutFrontShove();
+        }
     }
 
     private async UniTaskVoid TriggerMoveOutFrontShoveAsync()
