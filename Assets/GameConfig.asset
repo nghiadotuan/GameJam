@@ -34,10 +34,10 @@ MonoBehaviour:
   ballAngularDamping: 0.5
   ballMaxDepenetrationVelocity: 2
   ballAutoDestroyDelay: 3
-  zoomSpeed: 5
+  zoomSpeed: 1.2
   zoomMinDistance: 1
   zoomMaxDistance: 50
   zoomSmoothSpeed: 10
   pipeMoveSpeed: 0.25
-  distanceShove: 0.2
+  distanceShove: 1
   shoveSpeed: 2
