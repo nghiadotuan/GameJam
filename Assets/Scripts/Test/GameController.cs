@@ -853,15 +853,17 @@ public class GameController : MonoBehaviour
             return;
         }
 
+        const int requiredPacksPerColorPerShove = 3;
+
         int smallShovesPerShove = shovePrefab.GetComponentsInChildren<SmallShove>(true).Length;
-        if (smallShovesPerShove <= 0)
+        if (smallShovesPerShove < requiredPacksPerColorPerShove)
         {
-            Debug.LogWarning("Shove Prefab không có SmallShove nào, không thể sinh xe theo PackBalls!");
+            Debug.LogWarning($"Shove Prefab cần ít nhất {requiredPacksPerColorPerShove} SmallShove để map đúng luật 3 pack/màu -> 1 shove. Hiện tại: {smallShovesPerShove}.");
             return;
         }
 
-        int theoreticalByTotalOnly = Mathf.CeilToInt((float)allPacks.Length / smallShovesPerShove);
-        Debug.Log($"[GenerateShovesFromPacks] Tong pack={allPacks.Length}, suc chua moi shove={smallShovesPerShove}, neu bo qua mau thi can toi thieu {theoreticalByTotalOnly} shove.");
+        int theoreticalByTotalOnly = Mathf.CeilToInt((float)allPacks.Length / requiredPacksPerColorPerShove);
+        Debug.Log($"[GenerateShovesFromPacks] Tong pack={allPacks.Length}, luat=3 pack cung mau/1 shove, neu bo qua mau thi can toi thieu {theoreticalByTotalOnly} shove.");
 
         // Validate level: mỗi màu phải chia hết cho 3. Sai thì dừng sinh shove và báo lỗi level.
         var colorGroups = allPacks.GroupBy(p => p.colorIndex).ToList();
@@ -869,7 +871,7 @@ public class GameController : MonoBehaviour
         foreach (var colorGroup in colorGroups)
         {
             int packCountForColor = colorGroup.Count();
-            if (packCountForColor % 3 != 0)
+            if (packCountForColor % requiredPacksPerColorPerShove != 0)
             {
                 invalidColorMessages.Add($"{colorGroup.Key}={packCountForColor}");
             }
@@ -897,9 +899,7 @@ public class GameController : MonoBehaviour
         foreach (var colorGroup in colorGroups)
         {
             int packCountForColor = colorGroup.Count();
-
-
-            int shoveCountForColor = Mathf.CeilToInt((float)packCountForColor / smallShovesPerShove);
+            int shoveCountForColor = packCountForColor / requiredPacksPerColorPerShove;
             Debug.Log($"[GenerateShovesFromPacks] Mau {colorGroup.Key}: {packCountForColor} pack => {shoveCountForColor} shove.");
 
             for (int i = 0; i < shoveCountForColor; i++)
@@ -935,6 +935,6 @@ public class GameController : MonoBehaviour
         // 6. Cập nhật xếp hàng xe trên băng chuyền
         ShoveContainer.Instance.SetupShovePositions();
 
-        Debug.Log($"<color=green>Thành công!</color> Đã dọn xe cũ và tự động sinh {randomizedShoveColors.Count} chiếc Shove mới từ {allPacks.Length} PackBalls (mỗi Shove chứa tối đa {smallShovesPerShove} pack cùng màu).");
+        Debug.Log($"<color=green>Thành công!</color> Đã dọn xe cũ và tự động sinh {randomizedShoveColors.Count} chiếc Shove mới từ {allPacks.Length} PackBalls (chuẩn 3 pack cùng màu/1 shove).");
     }
 }

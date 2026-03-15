@@ -32,6 +32,32 @@ public class ShoveContainer : MonoBehaviour
         //  if (shoveList.Count > 0) currentState = ContainerState.Move;
     }
 
+    [ContextMenu("0. Refresh Shove List From Children")]
+    [Button]
+    public void RefreshShoveListFromChildren()
+    {
+        if (shoveList == null)
+        {
+            shoveList = new List<ShoveMovement>();
+        }
+
+        shoveList.Clear();
+
+        // Lấy đúng các con trực tiếp của container, giữ nguyên thứ tự hierarchy.
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            Transform child = transform.GetChild(i);
+            ShoveMovement shove = child.GetComponent<ShoveMovement>();
+            if (shove != null)
+            {
+                shoveList.Add(shove);
+            }
+        }
+
+        // Sau khi sắp xếp lại thứ tự list theo hierarchy, tính lại vị trí ngay.
+        SetupShovePositions();
+    }
+
     [ContextMenu("1. Setup Vị trí Xếp hàng")]
     [Button]
     public void SetupShovePositions()
