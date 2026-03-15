@@ -14,7 +14,9 @@ public enum ColorEnum
     Pink,
     Cyan ,
     White ,
-    Black
+    Black  ,
+    PalletYellow ,
+    Brown
 }
 
 public class PackBalls : MonoBehaviour
