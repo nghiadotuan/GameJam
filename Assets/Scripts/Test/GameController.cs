@@ -263,48 +263,43 @@ public class GameController : MonoBehaviour
             }
         }
 
-        // ƯU TIÊN 1.5: KIỂM TRA TRONG STASH XEM CÓ XE NÀO CÙNG MÀU MÀ VẪN CÒN CHỖ KHÔNG
+        // ƯU TIÊN 1.5: KIỂM TRA TRONG STASH XEM CÓ SLOT NÀO CÙNG MÀU MÀ VẪN CÒN CHỖ KHÔNG
         if (targetShove == null && stashShoves != null)
         {
             foreach (var stash in stashShoves)
             {
-                Shove stashShoveComp = stash.GetComponent<Shove>();
-                if (stashShoveComp != null && stashShoveComp.Color == pack.colorIndex)
+                if (stash == null) continue;
+
+                bool hasSameColorCapacity = false;
+                foreach (var s in stash.GetComponentsInChildren<SmallShove>())
                 {
-                    int totalCapacity = 0;
-                    int totalBallsInIt = 0;
-                    bool hasCapacitySet = false;
-
-                    foreach (var s in stash.GetComponentsInChildren<SmallShove>())
+                    if (s == null) continue;
+                    if (s.SlotColor == pack.colorIndex && s.NumBallFull > 0 && (s.CurrentBallCount + s.PendingBallCount) < s.NumBallFull)
                     {
-                        if (s.NumBallFull > 0) hasCapacitySet = true;
-                        totalCapacity += s.NumBallFull;
-                        totalBallsInIt += s.CurrentBallCount + s.PendingBallCount;
-                    }
-                    totalBallsInIt += stash.InPipeBallCount;
-
-                    if (hasCapacitySet && totalCapacity - totalBallsInIt > 0)
-                    {
-                        targetShove = stash;
-                        targetShove.TargetColor = pack.colorIndex;
+                        hasSameColorCapacity = true;
                         break;
                     }
+                }
+
+                if (hasSameColorCapacity)
+                {
+                    targetShove = stash;
+                    break;
                 }
             }
         }
 
-        // 1.75. Tương tự cho stash cùng màu: còn SmallShove trống thì pack mới chỉ gán cho 1 SmallShove.
+        // 1.75. Stash có SmallShove trống chưa gán màu/capacity thì pack mới sẽ gán vào 1 slot đó.
         if (targetShove == null && stashShoves != null)
         {
             foreach (var stash in stashShoves)
             {
-                Shove stashShoveComp = stash.GetComponent<Shove>();
-                if (stashShoveComp == null || stashShoveComp.Color != pack.colorIndex) continue;
+                if (stash == null) continue;
 
                 bool hasEmptySmallShove = false;
                 foreach (var s in stash.GetComponentsInChildren<SmallShove>())
                 {
-                    if (s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0)
+                    if (s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0 && s.SlotColor == ColorEnum.None)
                     {
                         hasEmptySmallShove = true;
                         break;
@@ -314,7 +309,6 @@ public class GameController : MonoBehaviour
                 if (hasEmptySmallShove)
                 {
                     targetShove = stash;
-                    targetShove.TargetColor = pack.colorIndex;
                     isFirstPackForShove = true;
                     break;
                 }
@@ -354,35 +348,27 @@ public class GameController : MonoBehaviour
             }
         }
 
-        // 3. NẾU VẪN KHÔNG CÓ, TÌM 1 XE XÁM TRỐNG 
+        // 3. NẾU VẪN KHÔNG CÓ, TÌM 1 STASH CÓ SLOT TRỐNG CHƯA GÁN
         if (targetShove == null && stashShoves != null)
         {
             foreach (var stash in stashShoves)
             {
-                Shove stashShoveComp = stash.GetComponent<Shove>();
-                
-                // Điều kiện: Chưa được đổi màu bao giờ (ColorEnum.None) và hoàn toàn trống
-                if (stashShoveComp != null && stashShoveComp.Color == ColorEnum.None)
+                if (stash == null) continue;
+                bool hasEmptySmallShove = false;
+                foreach (var s in stash.GetComponentsInChildren<SmallShove>())
                 {
-                    bool isEmptyAndUnassigned = true;
-                    foreach (var s in stash.GetComponentsInChildren<SmallShove>())
+                    if (s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0 && s.SlotColor == ColorEnum.None)
                     {
-                        if (s.NumBallFull > 0 || s.CurrentBallCount > 0 || s.PendingBallCount > 0 || stash.InPipeBallCount > 0)
-                        {
-                            isEmptyAndUnassigned = false;
-                            break;
-                        }
-                    }
-
-                    if (isEmptyAndUnassigned)
-                    {
-                        targetShove = stash;
-                        stashShoveComp.Color = pack.colorIndex;
-                        targetShove.TargetColor = pack.colorIndex;
-                        targetShove.ApplyMaterial();
-                        isFirstPackForShove = true; // Pack đầu tiên xác định sức chứa
+                        hasEmptySmallShove = true;
                         break;
                     }
+                }
+
+                if (hasEmptySmallShove)
+                {
+                    targetShove = stash;
+                    isFirstPackForShove = true;
+                    break;
                 }
             }
         }
@@ -394,7 +380,7 @@ public class GameController : MonoBehaviour
             SmallShove targetSmallShove = null;
             foreach (var ss in smallShoves)
             {
-                if (ss.NumBallFull == 0 && ss.CurrentBallCount == 0 && ss.PendingBallCount == 0)
+                if (ss.NumBallFull == 0 && ss.CurrentBallCount == 0 && ss.PendingBallCount == 0 && ss.SlotColor == ColorEnum.None)
                 {
                     targetSmallShove = ss;
                     break;
@@ -405,6 +391,7 @@ public class GameController : MonoBehaviour
             {
                 int packCapacity = sortedBalls.Count;
                 targetSmallShove.NumBallFull = packCapacity;
+                targetSmallShove.SlotColor = pack.colorIndex;
 
                 if (targetSmallShove.NumBallFull > 0 && targetSmallShove.NumBallFull <= targetSmallShove.ListPosBall.Count)
                 {
@@ -522,32 +509,20 @@ public class GameController : MonoBehaviour
         foreach (var stash in stashShoves)
         {
             if (stash == null) continue;
-
-            int totalCapacity = 0;
-            int used = stash.InPipeBallCount;
-            bool hasCapacitySet = false;
-            bool isEmptyUnassigned = true;
-
             foreach (var s in stash.GetComponentsInChildren<SmallShove>())
             {
                 if (s == null) continue;
-                totalCapacity += s.NumBallFull;
-                used += s.CurrentBallCount + s.PendingBallCount;
-                if (s.NumBallFull > 0) hasCapacitySet = true;
-                if (s.NumBallFull > 0 || s.CurrentBallCount > 0 || s.PendingBallCount > 0)
+
+                bool isEmptyUnassigned = s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0 && s.SlotColor == ColorEnum.None;
+                if (isEmptyUnassigned)
                 {
-                    isEmptyUnassigned = false;
+                    return true;
                 }
-            }
 
-            if (isEmptyUnassigned && stash.InPipeBallCount == 0)
-            {
-                return true;
-            }
-
-            if (stash.TargetColor == color && hasCapacitySet && (totalCapacity - used > 0))
-            {
-                return true;
+                if (s.SlotColor == color && s.NumBallFull > 0 && (s.CurrentBallCount + s.PendingBallCount) < s.NumBallFull)
+                {
+                    return true;
+                }
             }
         }
 
@@ -588,31 +563,30 @@ public class GameController : MonoBehaviour
         if (isTransferringStash) return;
 
         ShoveMovement targetMainShove = null;
-        ShoveMovement fullStashShove = null;
+        SmallShove sourceStashSmallShove = null;
+        ColorEnum transferColor = ColorEnum.None;
 
-        // 1. Tìm xem có xe Xám (Stash) nào đang FULL không
+        // 1. Tìm 1 SmallShove trong stash đã FULL (mỗi small độc lập theo màu riêng)
         foreach (var stash in stashShoves)
         {
-            if (stash.TargetColor != ColorEnum.None)
+            if (stash == null) continue;
+
+            foreach (var ss in stash.GetComponentsInChildren<SmallShove>())
             {
-                bool allFull = true;
-                foreach (var ss in stash.GetComponentsInChildren<SmallShove>())
+                if (ss == null || ss.SlotColor == ColorEnum.None || ss.NumBallFull <= 0) continue;
+
+                if (ss.CurrentBallCount >= ss.NumBallFull)
                 {
-                    if (ss.CurrentBallCount < ss.NumBallFull || ss.NumBallFull == 0)
-                    {
-                        allFull = false;
-                        break;
-                    }
-                }
-                if (allFull)
-                {
-                    fullStashShove = stash;
+                    sourceStashSmallShove = ss;
+                    transferColor = ss.SlotColor;
                     break;
                 }
             }
+
+            if (sourceStashSmallShove != null) break;
         }
 
-        if (fullStashShove == null) return;
+        if (sourceStashSmallShove == null || transferColor == ColorEnum.None) return;
 
         // 2. Nếu có Stash FULL, tìm trong xe đầu băng chuyền:
         //    Ưu tiên 1: xe trống CÙNG MÀU với stash
@@ -640,7 +614,7 @@ public class GameController : MonoBehaviour
 
                 if (!isMainEmpty) continue;
 
-                if (mainShoveComp.Color == fullStashShove.TargetColor)
+                if (mainShoveComp.Color == transferColor)
                 {
                     // Ưu tiên 1: cùng màu → chọn luôn
                     targetMainShove = mainShove;
@@ -659,7 +633,7 @@ public class GameController : MonoBehaviour
             {
                 targetMainShove = grayFallback;
                 Shove grayComp = targetMainShove.GetComponent<Shove>();
-                if (grayComp != null) grayComp.Color = fullStashShove.TargetColor;
+                if (grayComp != null) grayComp.Color = transferColor;
             }
         }
 
@@ -668,23 +642,13 @@ public class GameController : MonoBehaviour
         isTransferringStash = true;
         currentTransferMainShove = targetMainShove;
 
-        targetMainShove.TargetColor = fullStashShove.TargetColor;
+        targetMainShove.TargetColor = transferColor;
         Shove mainTargetShoveComp = targetMainShove.GetComponent<Shove>();
-        if (mainTargetShoveComp != null) mainTargetShoveComp.Color = fullStashShove.TargetColor;
+        if (mainTargetShoveComp != null) mainTargetShoveComp.Color = transferColor;
 
-        SmallShove[] stashSmallShoves = fullStashShove.GetComponentsInChildren<SmallShove>();
         SmallShove[] mainSmallShoves = targetMainShove.GetComponentsInChildren<SmallShove>();
 
-        List<Ball> ballsToTransfer = new List<Ball>();
-        foreach (var ss in stashSmallShoves)
-        {
-            ballsToTransfer.AddRange(ss.GetComponentsInChildren<Ball>());
-        }
-
-        if (ballsToTransfer.Count == 0)
-        {
-            ballsToTransfer = fullStashShove.GetComponentsInChildren<Ball>().ToList();
-        }
+        List<Ball> ballsToTransfer = sourceStashSmallShove.GetComponentsInChildren<Ball>().ToList();
 
         // Chừa chỗ cho các ball đã reserve và đang đi trong ống vào main shove này.
         int totalBalls = ballsToTransfer.Count + targetMainShove.InPipeBallCount;
@@ -709,12 +673,9 @@ public class GameController : MonoBehaviour
             }
         }
 
-        // Tạo danh sách nhóm các quả bóng dựa trên cột (SmallShove) lúc nó đang đứng ở bãi Stash
+        // Tạo danh sách nhóm bóng theo small nguồn (ở đây chỉ có 1 small đầy)
         List<List<Ball>> stashBallsGrouped = new List<List<Ball>>();
-        foreach (var ss in stashSmallShoves)
-        {
-            stashBallsGrouped.Add(ss.GetComponentsInChildren<Ball>().ToList());
-        }
+        stashBallsGrouped.Add(ballsToTransfer.ToList());
 
         foreach (var b in ballsToTransfer)
         {
@@ -767,7 +728,7 @@ public class GameController : MonoBehaviour
 
         await UniTask.WhenAll(allTransferTasks);
 
-        fullStashShove.ResetToEmpty();
+        sourceStashSmallShove.ResetShove();
 
         currentTransferMainShove = null;
         isTransferringStash = false;

@@ -6,6 +6,7 @@ using UnityEngine;
 public class SmallShove : MonoBehaviour
 {
     [ShowInInspector] public int NumBallFull { get; set; }
+    [ShowInInspector] public ColorEnum SlotColor { get; set; } = ColorEnum.None;
     public List<Transform> ListPosBall;
     public int IndexPosBall { get; set; }
 
@@ -54,6 +55,7 @@ public class SmallShove : MonoBehaviour
 
     public void ResetShove()
     {
+        SlotColor = ColorEnum.None;
         CurrentBallCount = 0;
         PendingBallCount = 0;
         IndexPosBall = 0;

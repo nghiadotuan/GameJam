@@ -305,9 +305,18 @@ public class Ball : MonoBehaviour
         slot = null;
         if (targetShove == null || !IsShoveColorCompatible(targetShove)) return false;
 
+        bool isStashShove = GameController.Instance != null && GameController.Instance.stashShoves != null && GameController.Instance.stashShoves.Contains(targetShove);
+
         foreach (var s in targetShove.GetComponentsInChildren<SmallShove>())
         {
-            if (s != null && s.PendingBallCount + s.CurrentBallCount < s.NumBallFull)
+            if (s == null) continue;
+
+            if (isStashShove)
+            {
+                if (s.SlotColor != _sourceColor) continue;
+            }
+
+            if (s.PendingBallCount + s.CurrentBallCount < s.NumBallFull)
             {
                 slot = s;
                 return true;
@@ -347,6 +356,19 @@ public class Ball : MonoBehaviour
     {
         if (shove == null) return false;
         if (_sourceColor == ColorEnum.None) return true;
+
+        if (GameController.Instance != null && GameController.Instance.stashShoves != null && GameController.Instance.stashShoves.Contains(shove))
+        {
+            foreach (var s in shove.GetComponentsInChildren<SmallShove>())
+            {
+                if (s != null && s.SlotColor == _sourceColor && s.NumBallFull > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         ColorEnum shoveColor = shove.TargetColor;
         if (shoveColor == ColorEnum.None)
