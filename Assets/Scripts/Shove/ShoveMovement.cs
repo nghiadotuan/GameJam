@@ -139,6 +139,9 @@ public class ShoveMovement : MonoBehaviour
         GameController.Instance = FindAnyObjectByType<GameController>();
         if (GameController.Instance == null || GameController.Instance.materialMapping == null || GameController.Instance.materialMapping.Count == 0) return;
 
+        // Stash shove luôn giữ material hiện tại, không cho đổi trong mọi trường hợp.
+        if (GameController.Instance.stashShoves != null && GameController.Instance.stashShoves.Contains(this)) return;
+
         int index = (int)TargetColor;
         if (index < 0 || index >= GameController.Instance.materialMapping.Count) index = 0; // Fallback None ( Gray )
 
