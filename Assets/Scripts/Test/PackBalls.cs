@@ -19,6 +19,9 @@ public class PackBalls : MonoBehaviour
 {
     public ColorEnum colorIndex = ColorEnum.None;
     
+    [Header("Behavior")]
+    public bool IsOwner = false;
+
     [Header("Data Management")]
     [Tooltip("Danh sách chứa toàn bộ các quả bóng con")]
     public List<GameObject> balls = new List<GameObject>();

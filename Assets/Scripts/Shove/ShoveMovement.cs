@@ -60,6 +60,9 @@ public class ShoveMovement : MonoBehaviour
     public void ResetToEmpty()
     {
         TargetColor = ColorEnum.None;
+        
+        Shove shoveComp = GetComponent<Shove>();
+        if (shoveComp != null) shoveComp.Color = ColorEnum.None;
 
         if (_smallShoves != null)
         {
@@ -80,14 +83,26 @@ public class ShoveMovement : MonoBehaviour
             }
         }
 
-        // Khôi phục bộ giáp xám
-        if (GameController.Instance != null && GameController.Instance.materialMapping != null && GameController.Instance.materialMapping.Count > 0)
+        // Khôi phục bộ giáp xám bằng lệnh ApplyMaterial
+        ApplyMaterial();
+    }
+
+    public void ApplyMaterial()
+    {
+        if (GameController.Instance == null || GameController.Instance.materialMapping == null || GameController.Instance.materialMapping.Count == 0) return;
+
+        int index = (int)TargetColor;
+        if (index < 0 || index >= GameController.Instance.materialMapping.Count) index = 0; // Fallback None ( Gray )
+
+        Material mat = GameController.Instance.materialMapping[index];
+        if (mat == null) return;
+
+        // Quét toàn bộ MeshRenderer trong Shove (Bao gồm vỏ xe và cỏ của nó, hoặc các họng nhỏ)
+        MeshRenderer[] renderers = GetComponentsInChildren<MeshRenderer>();
+        foreach (var r in renderers)
         {
-            var renderer = GetComponentInChildren<MeshRenderer>();
-            if (renderer != null)
-            {
-                renderer.material = GameController.Instance.materialMapping[0]; // 0 là None (Xám)
-            }
+            if (r.gameObject.name.Contains("IgnoreColor")) continue; // Bỏ qua các object có tên chứa "IgnoreColor"
+            r.material = mat;
         }
     }
 
