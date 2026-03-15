@@ -892,6 +892,13 @@ public class GameController : MonoBehaviour
             return;
         }
 
+        int smallShovesPerShove = shovePrefab.GetComponentsInChildren<SmallShove>(true).Length;
+        if (smallShovesPerShove <= 0)
+        {
+            Debug.LogWarning("Shove Prefab không có SmallShove nào, không thể sinh xe theo PackBalls!");
+            return;
+        }
+
         // 2. Xóa sạch các xe Shove cũ trong Container và trên Scene
         for (int i = ShoveContainer.Instance.shoveList.Count - 1; i >= 0; i--)
         {
@@ -902,34 +909,47 @@ public class GameController : MonoBehaviour
         }
         ShoveContainer.Instance.shoveList.Clear();
 
-        // 3. (Tùy chọn) Xáo trộn ngẫu nhiên thứ tự PackBalls để sinh xe ngẫu nhiên thứ tự
-        // (Nếu bạn muốn xe chạy ra tuần tự thì bỏ qua đoạn xáo trộn này)
-        List<PackBalls> randomizedPacks = allPacks.OrderBy(x => Random.value).ToList();
+        // 3. Gom pack theo màu. Vì mỗi pack giờ tương ứng với 1 SmallShove,
+        // nên mỗi xe Shove sẽ chứa tối đa số pack bằng số SmallShove của prefab.
+        List<ColorEnum> shoveColorsToSpawn = new List<ColorEnum>();
+        foreach (var colorGroup in allPacks.GroupBy(p => p.colorIndex))
+        {
+            int packCountForColor = colorGroup.Count();
+            int shoveCountForColor = Mathf.CeilToInt((float)packCountForColor / smallShovesPerShove);
 
-        // 4. Sinh xe Shove mới cho từng Pack
-        foreach (var pack in randomizedPacks)
+            for (int i = 0; i < shoveCountForColor; i++)
+            {
+                shoveColorsToSpawn.Add(colorGroup.Key);
+            }
+        }
+
+        // 4. Random thứ tự sinh xe
+        List<ColorEnum> randomizedShoveColors = shoveColorsToSpawn.OrderBy(_ => Random.value).ToList();
+
+        // 5. Sinh xe Shove mới theo danh sách màu đã chia batch
+        foreach (var shoveColor in randomizedShoveColors)
         {
             Transform parentToUse = shoveParent != null ? shoveParent : ShoveContainer.Instance.transform;
             GameObject newShoveObj = Instantiate(shovePrefab, parentToUse);
-            newShoveObj.name = $"Shove_{pack.colorIndex}";
+            newShoveObj.name = $"Shove_{shoveColor}";
 
             ShoveMovement shoveMove = newShoveObj.GetComponent<ShoveMovement>();
             if (shoveMove != null)
             {
                 // Gán màu đích mà Shove này sẽ khóa cố định ngay từ lúc mới sinh ra
-                shoveMove.TargetColor = pack.colorIndex;
+                shoveMove.TargetColor = shoveColor;
                 
                 Shove shoveComp = newShoveObj.GetComponent<Shove>();
-                if (shoveComp != null) shoveComp.Color = pack.colorIndex;
+                if (shoveComp != null) shoveComp.Color = shoveColor;
 
                 shoveMove.ApplyMaterial();
                 ShoveContainer.Instance.shoveList.Add(shoveMove);
             }
         }
 
-        // 5. Cập nhật xếp hàng xe trên băng chuyền
+        // 6. Cập nhật xếp hàng xe trên băng chuyền
         ShoveContainer.Instance.SetupShovePositions();
 
-        Debug.Log($"<color=green>Thành công!</color> Đã dọn xe cũ và tự động sinh {allPacks.Length} chiếc Shove mới chở bóng theo màu.");
+        Debug.Log($"<color=green>Thành công!</color> Đã dọn xe cũ và tự động sinh {randomizedShoveColors.Count} chiếc Shove mới từ {allPacks.Length} PackBalls (mỗi Shove chứa tối đa {smallShovesPerShove} pack cùng màu).");
     }
 }
