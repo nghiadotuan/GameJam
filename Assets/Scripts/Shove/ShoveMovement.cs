@@ -35,10 +35,13 @@ public class ShoveMovement : MonoBehaviour
 
         if (GameController.Instance != null && GameController.Instance.stashShoves.Contains(this))
         {
-            // Stash mỗi slot độc lập: chỉ cần slot vừa đầy thì thử transfer.
+            // Stash: chỉ khi slot vừa đầy và có điều kiện target hợp lệ thì mới đẩy sang main.
             if (shove != null && shove.NumBallFull > 0 && shove.CurrentBallCount >= shove.NumBallFull)
             {
-                GameController.Instance.TryTransferStashToMainAsync().Forget();
+                if (GameController.Instance.HasPriorityStashTransferPending())
+                {
+                    GameController.Instance.TryTransferStashToMainAsync().Forget();
+                }
             }
             return;
         }
@@ -49,7 +52,8 @@ public class ShoveMovement : MonoBehaviour
         {
             if (ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0 && ShoveContainer.Instance.shoveList[0] == this)
             {
-                ShoveContainer.Instance.TriggerMoveOutFrontShove();
+                // Main shove: đầy thì yêu cầu container check điều kiện move-out an toàn.
+                ShoveContainer.Instance.TryTriggerMoveOutIfFrontFull();
             }
         }
     }
@@ -59,6 +63,12 @@ public class ShoveMovement : MonoBehaviour
         if (_smallShoves == null || _smallShoves.Length == 0)
         {
             _smallShoves = GetComponentsInChildren<SmallShove>();
+        }
+
+        // Rule gameplay: shove lớn chỉ được coi là full khi có đủ 3 small shove.
+        if (_smallShoves.Length < 3)
+        {
+            return false;
         }
 
         foreach (var ss in _smallShoves)

@@ -75,10 +75,12 @@ public class GameController : MonoBehaviour
 
     private void Start()
     {
-        _initialPackCount = FindObjectsByType<PackBalls>(FindObjectsSortMode.None).Length;
+        _initialPackCount = CalculateWinMoveOutTarget();
         _moveOutCount = 0;
         _hasLoggedWin = false;
         _hasLoggedLose = false;
+
+        Debug.Log($"[WinInit] Target move-out = {_initialPackCount}");
 
         // 1. Áp dụng material cho các xe trên băng chuyền ban đầu
         // if (ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList != null)
@@ -494,23 +496,35 @@ public class GameController : MonoBehaviour
         if (_hasLoggedWin) return;
 
         _moveOutCount++;
+        Debug.Log($"[WinProgress] MoveOut {_moveOutCount}/{_initialPackCount}");
 
         if (_initialPackCount > 0 && _moveOutCount >= _initialPackCount)
         {
             _hasLoggedWin = true;
             Debug.Log($"WIN! MoveOut: {_moveOutCount}/{_initialPackCount}");
             if (winPopup != null) winPopup.SetActive(true);
+            if (popupWin != null) popupWin.gameObject.SetActive(true);
         }
+    }
+
+    private int CalculateWinMoveOutTarget()
+    {
+        if (ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList != null && ShoveContainer.Instance.shoveList.Count > 0)
+        {
+            return ShoveContainer.Instance.shoveList.Count;
+        }
+
+        // Fallback nếu chưa có list shove ở thời điểm init.
+        return FindObjectsByType<PackBalls>(FindObjectsSortMode.None).Length;
     }
 
     public void EvaluateLoseConditionForColor(ColorEnum ballColor, string context = null)
     {
         if (_hasLoggedLose || ballColor == ColorEnum.None) return;
         if (HasAvailableStashForColor(ballColor)) return;
-        if (FrontTwoShovesContainColor(ballColor)) return;
 
         _hasLoggedLose = true;
-        Debug.Log($"LOSE! BallColor={ballColor} | Het stash shove phu hop va shove dau khong trung mau. {context}");
+        Debug.Log($"LOSE! BallColor={ballColor} | Da dung het stash small shove phu hop. {context}");
         if (losePopup != null) losePopup.SetActive(true);
     }
 
@@ -525,7 +539,7 @@ public class GameController : MonoBehaviour
             {
                 if (s == null) continue;
 
-                bool isEmptyUnassigned = s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0 && s.SlotColor == ColorEnum.None;
+                bool isEmptyUnassigned = s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0 && s.SlotColor == ColorEnum.None && s.SlotPackRef == null;
                 if (isEmptyUnassigned)
                 {
                     return true;
@@ -564,6 +578,56 @@ public class GameController : MonoBehaviour
             if (shoveColor == color)
             {
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool HasPriorityStashTransferPending()
+    {
+        if (isTransferringStash) return false;
+        if (stashShoves == null || stashShoves.Count == 0) return false;
+        if (ShoveContainer.Instance == null || ShoveContainer.Instance.shoveList == null || ShoveContainer.Instance.shoveList.Count == 0) return false;
+
+        ShoveMovement frontShove = ShoveContainer.Instance.shoveList[0];
+        if (frontShove == null) return false;
+
+        Shove frontShoveComp = frontShove.GetComponent<Shove>();
+        if (frontShoveComp == null) return false;
+
+        SmallShove[] frontSmalls = frontShove.GetComponentsInChildren<SmallShove>();
+
+        foreach (var stash in stashShoves)
+        {
+            if (stash == null) continue;
+
+            foreach (var source in stash.GetComponentsInChildren<SmallShove>())
+            {
+                if (source == null || source.SlotColor == ColorEnum.None || source.CurrentBallCount <= 0) continue;
+
+                foreach (var target in frontSmalls)
+                {
+                    if (target == null) continue;
+
+                    bool canFillExistingCompatible =
+                        target.NumBallFull > 0 &&
+                        target.SlotColor == source.SlotColor &&
+                        target.SlotPackRef == source.SlotPackRef &&
+                        (target.CurrentBallCount + target.PendingBallCount) < target.NumBallFull;
+
+                    bool canUseEmptySlot =
+                        target.NumBallFull == 0 &&
+                        target.CurrentBallCount == 0 &&
+                        target.PendingBallCount == 0 &&
+                        target.SlotPackRef == null &&
+                        (frontShoveComp.Color == source.SlotColor || frontShoveComp.Color == ColorEnum.None);
+
+                    if (canFillExistingCompatible || canUseEmptySlot)
+                    {
+                        return true;
+                    }
+                }
             }
         }
 
@@ -716,7 +780,13 @@ public class GameController : MonoBehaviour
                 targetMainSmallShove.IndexPosBall = 0;
         }
 
-        if (transferLimit <= 0) return;
+        if (transferLimit <= 0)
+        {
+            currentTransferMainShove = null;
+            isTransferringStash = false;
+            TryTransferStashToMainAsync().Forget();
+            return;
+        }
 
         List<Ball> ballsToTransfer = ballsInSource.Take(transferLimit).ToList();
 
@@ -727,20 +797,24 @@ public class GameController : MonoBehaviour
 
         List<UniTask> allTransferTasks = new List<UniTask>();
         const float stashTransferFlyDuration = 0.12f;
+        ColorEnum transferLockColor = transferColor;
+        PackBalls transferLockPack = sourceStashSmallShove.SlotPackRef;
         foreach (var ball in ballsToTransfer)
         {
             if (ball == null) continue;
 
             if (targetMainSmallShove.IsFull) break;
 
-            if (!targetMainSmallShove.TryLockForBall(ball.SourceColor, ball.SourcePack))
+            ball.SetSourceContext(transferLockColor, transferLockPack);
+
+            if (!targetMainSmallShove.TryLockForBall(transferLockColor, transferLockPack))
             {
-                Debug.LogWarning($"[StashTransfer] Skip ball {ball.name}: target small lock fail (Color={ball.SourceColor}).");
+                Debug.LogWarning($"[StashTransfer] Skip ball {ball.name}: target small lock fail (Color={transferLockColor}).");
                 continue;
             }
 
             targetMainSmallShove.PendingBallCount++;
-            allTransferTasks.Add(ball.TransferToShoveAsync(targetMainSmallShove, stashTransferFlyDuration));
+            allTransferTasks.Add(ball.TransferToShoveAsync(targetMainSmallShove, stashTransferFlyDuration, transferLockColor, transferLockPack));
         }
 
         await UniTask.WhenAll(allTransferTasks);
@@ -958,6 +1032,12 @@ public class GameController : MonoBehaviour
         // 6. Cập nhật xếp hàng xe trên băng chuyền
         ShoveContainer.Instance.SetupShovePositions();
 
+        // Đồng bộ lại target win theo số shove thật sự của level mới.
+        _initialPackCount = ShoveContainer.Instance.shoveList.Count;
+        _moveOutCount = 0;
+        _hasLoggedWin = false;
+
         Debug.Log($"<color=green>Thành công!</color> Đã dọn xe cũ và tự động sinh {randomizedShoveColors.Count} chiếc Shove mới từ {allPacks.Length} PackBalls (chuẩn 3 pack cùng màu/1 shove).");
+        Debug.Log($"[WinInit] Target move-out = {_initialPackCount}");
     }
 }

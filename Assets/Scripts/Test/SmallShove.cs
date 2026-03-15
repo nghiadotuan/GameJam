@@ -15,7 +15,7 @@ public class SmallShove : MonoBehaviour
     [ShowInInspector] public int PendingBallCount { get; set; }
     public System.Action<SmallShove> OnShoveFull;
 
-    [ShowInInspector] public bool IsFull => (CurrentBallCount + PendingBallCount) >= NumBallFull;
+    [ShowInInspector] public bool IsFull => NumBallFull > 0 && (CurrentBallCount + PendingBallCount) >= NumBallFull;
 
     public bool CanAcceptColor(ColorEnum color)
     {

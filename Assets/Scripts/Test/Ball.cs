@@ -20,6 +20,12 @@ public class Ball : MonoBehaviour
     public ColorEnum SourceColor => _sourceColor;
     public PackBalls SourcePack => _sourcePack;
 
+    public void SetSourceContext(ColorEnum color, PackBalls pack)
+    {
+        _sourceColor = color;
+        _sourcePack = pack;
+    }
+
     public void ExplodeSimple(Vector3 force, ShoveMovement targetShove = null, bool hasPipeReservation = false, ColorEnum sourceColor = ColorEnum.None, PackBalls sourcePack = null)
     {
         if (_isExploded) return;
@@ -226,6 +232,13 @@ public class Ball : MonoBehaviour
 
         while (_assignedShove == null && this != null && gameObject != null)
         {
+            if (GameController.Instance != null && GameController.Instance.HasPriorityStashTransferPending())
+            {
+                GameController.Instance.TryTransferStashToMainAsync().Forget();
+                await UniTask.Yield(PlayerLoopTiming.Update);
+                continue;
+            }
+
             if (!IsShoveStillUsable(targetShove))
             {
                 if (_hasPipeReservation && _targetShoveAfterPipe != null)
@@ -301,7 +314,7 @@ public class Ball : MonoBehaviour
         else
         {
             ReleasePipeReservation();
-            Debug.LogWarning("Ball đi hết ống nhưng chưa tìm được slot bắn phù hợp trong thời gian chờ.");
+            Debug.LogWarning($"Ball đi hết ống nhưng chưa tìm được slot bắn phù hợp trong thời gian chờ. Ball={name}, Color={_sourceColor}, Pack={(SourcePack != null ? SourcePack.name : "NULL")}");
 
             if (GameController.Instance != null)
             {
@@ -323,7 +336,7 @@ public class Ball : MonoBehaviour
             // Điều kiện cứng: slot phải thuộc đúng màu + đúng pack ref của quả bóng này.
             if (s.NumBallFull <= 0) continue;
             if (s.SlotColor != _sourceColor) continue;
-            if (s.SlotPackRef != _sourcePack) continue;
+            if (_sourcePack != null && s.SlotPackRef != _sourcePack) continue;
 
             if (s.PendingBallCount + s.CurrentBallCount < s.NumBallFull)
             {
@@ -338,8 +351,6 @@ public class Ball : MonoBehaviour
 
     private ShoveMovement ResolveTargetShove()
     {
-        if (IsShoveStillUsable(_targetShoveAfterPipe) && IsShoveColorCompatible(_targetShoveAfterPipe)) return _targetShoveAfterPipe;
-
         if (GameController.Instance != null && GameController.Instance.isTransferringStash)
         {
             ShoveMovement transferMainShove = GameController.Instance.currentTransferMainShove;
@@ -359,6 +370,9 @@ public class Ball : MonoBehaviour
             }
         }
 
+        // Fallback cuối cùng: target cũ (xe chờ phía sau), chỉ dùng khi front không phù hợp.
+        if (IsShoveStillUsable(_targetShoveAfterPipe) && IsShoveColorCompatible(_targetShoveAfterPipe)) return _targetShoveAfterPipe;
+
         return null;
     }
 
@@ -371,7 +385,10 @@ public class Ball : MonoBehaviour
         {
             foreach (var s in shove.GetComponentsInChildren<SmallShove>())
             {
-                if (s != null && s.NumBallFull > 0 && s.SlotColor == _sourceColor && s.SlotPackRef == _sourcePack)
+                if (s != null &&
+                    s.NumBallFull > 0 &&
+                    s.SlotColor == _sourceColor &&
+                    (_sourcePack == null || s.SlotPackRef == _sourcePack))
                 {
                     return true;
                 }
@@ -432,11 +449,16 @@ public class Ball : MonoBehaviour
         }
     }
 
-    public async UniTask TransferToShoveAsync(SmallShove targetShove, float flyDuration = 0.4f)
+    public async UniTask TransferToShoveAsync(SmallShove targetShove, float flyDuration = 0.4f, ColorEnum lockColor = ColorEnum.None, PackBalls lockPack = null)
     {
         if (targetShove == null || this == null || gameObject == null) return;
 
-        if (!targetShove.TryLockForBall(_sourceColor, _sourcePack)) return;
+        ColorEnum finalLockColor = lockColor != ColorEnum.None ? lockColor : _sourceColor;
+        PackBalls finalLockPack = lockPack != null ? lockPack : _sourcePack;
+
+        SetSourceContext(finalLockColor, finalLockPack);
+
+        if (!targetShove.TryLockForBall(finalLockColor, finalLockPack)) return;
 
         _assignedShove = targetShove;
 
