@@ -13,7 +13,8 @@ public enum ColorEnum
     Orange,
     Pink,
     Cyan ,
-    White
+    White ,
+    Black
 }
 
 public class PackBalls : MonoBehaviour
