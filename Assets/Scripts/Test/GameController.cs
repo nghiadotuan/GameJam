@@ -899,6 +899,27 @@ public class GameController : MonoBehaviour
             return;
         }
 
+        int theoreticalByTotalOnly = Mathf.CeilToInt((float)allPacks.Length / smallShovesPerShove);
+        Debug.Log($"[GenerateShovesFromPacks] Tong pack={allPacks.Length}, suc chua moi shove={smallShovesPerShove}, neu bo qua mau thi can toi thieu {theoreticalByTotalOnly} shove.");
+
+        // Validate level: mỗi màu phải chia hết cho 3. Sai thì dừng sinh shove và báo lỗi level.
+        var colorGroups = allPacks.GroupBy(p => p.colorIndex).ToList();
+        List<string> invalidColorMessages = new List<string>();
+        foreach (var colorGroup in colorGroups)
+        {
+            int packCountForColor = colorGroup.Count();
+            if (packCountForColor % 3 != 0)
+            {
+                invalidColorMessages.Add($"{colorGroup.Key}={packCountForColor}");
+            }
+        }
+
+        if (invalidColorMessages.Count > 0)
+        {
+            Debug.LogError($"<color=red>[LEVEL ERROR]</color> Mau khong chia het cho 3: {string.Join(", ", invalidColorMessages)}. Dung GenerateShovesFromPacks.");
+            return;
+        }
+
         // 2. Xóa sạch các xe Shove cũ trong Container và trên Scene
         for (int i = ShoveContainer.Instance.shoveList.Count - 1; i >= 0; i--)
         {
@@ -912,10 +933,13 @@ public class GameController : MonoBehaviour
         // 3. Gom pack theo màu. Vì mỗi pack giờ tương ứng với 1 SmallShove,
         // nên mỗi xe Shove sẽ chứa tối đa số pack bằng số SmallShove của prefab.
         List<ColorEnum> shoveColorsToSpawn = new List<ColorEnum>();
-        foreach (var colorGroup in allPacks.GroupBy(p => p.colorIndex))
+        foreach (var colorGroup in colorGroups)
         {
             int packCountForColor = colorGroup.Count();
+
+
             int shoveCountForColor = Mathf.CeilToInt((float)packCountForColor / smallShovesPerShove);
+            Debug.Log($"[GenerateShovesFromPacks] Mau {colorGroup.Key}: {packCountForColor} pack => {shoveCountForColor} shove.");
 
             for (int i = 0; i < shoveCountForColor; i++)
             {
