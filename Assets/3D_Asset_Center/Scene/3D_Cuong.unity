@@ -5235,7 +5235,7 @@ PrefabInstance:
     - target: {fileID: -7511558181221131132, guid: 8082dbf4570faf94384242c86dddfed5, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: 2930b27cda129df4fbf9c755f06825ef, type: 2}
+      objectReference: {fileID: 2100000, guid: b4d196944ea6d884abde8539dad77bcc, type: 2}
     - target: {fileID: 919132149155446097, guid: 8082dbf4570faf94384242c86dddfed5, type: 3}
       propertyPath: m_Name
       value: Small_Shove (9)
