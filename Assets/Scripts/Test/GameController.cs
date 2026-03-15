@@ -571,35 +571,52 @@ public class GameController : MonoBehaviour
 
         if (fullStashShove == null) return;
 
-        // 2. Nếu có Stash FULL, tìm xem trong 2 xe đầu băng chuyền có xe nào trống và CÙNG MÀU với nó không
+        // 2. Nếu có Stash FULL, tìm trong 2 xe đầu băng chuyền:
+        //    Ưu tiên 1: xe trống CÙNG MÀU với stash
+        //    Ưu tiên 2: xe trống MÀU XÁM (None) → gán màu stash cho nó
         if (ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
         {
             int maxShovesToCheck = Mathf.Min(2, ShoveContainer.Instance.shoveList.Count);
+            ShoveMovement grayFallback = null;
+
             for (int i = 0; i < maxShovesToCheck; i++)
             {
                 var mainShove = ShoveContainer.Instance.shoveList[i];
                 Shove mainShoveComp = mainShove.GetComponent<Shove>();
-                
-                // Điều kiện để đổ từ Stash sang Main: Main phải có Color trùng với Stash Color
-                // VÀ nó phải đang là xe trống chưa nhận bóng (TargetColor chưa bị lock hoặc vẫn bằng none/màu gốc nhưng small shoves trống)
-                if (mainShoveComp != null && mainShoveComp.Color == fullStashShove.TargetColor)
-                {
-                    bool isMainEmpty = true;
-                    foreach (var ss in mainShove.GetComponentsInChildren<SmallShove>())
-                    {
-                        if (ss.NumBallFull > 0) // Có nghĩa là nó đã bắt đầu nhận bóng từ thao tác người chơi
-                        {
-                            isMainEmpty = false;
-                            break;
-                        }
-                    }
+                if (mainShoveComp == null) continue;
 
-                    if (isMainEmpty)
+                bool isMainEmpty = true;
+                foreach (var ss in mainShove.GetComponentsInChildren<SmallShove>())
+                {
+                    if (ss.NumBallFull > 0 || ss.CurrentBallCount > 0 || ss.PendingBallCount > 0 || mainShove.InPipeBallCount > 0)
                     {
-                        targetMainShove = mainShove;
+                        isMainEmpty = false;
                         break;
                     }
                 }
+
+                if (!isMainEmpty) continue;
+
+                if (mainShoveComp.Color == fullStashShove.TargetColor)
+                {
+                    // Ưu tiên 1: cùng màu → chọn luôn
+                    targetMainShove = mainShove;
+                    break;
+                }
+
+                if (mainShoveComp.Color == ColorEnum.None && grayFallback == null)
+                {
+                    // Ưu tiên 2: xe xám trống → lưu lại làm fallback
+                    grayFallback = mainShove;
+                }
+            }
+
+            // Nếu không tìm được xe cùng màu, dùng xe xám trống và gán màu stash
+            if (targetMainShove == null && grayFallback != null)
+            {
+                targetMainShove = grayFallback;
+                Shove grayComp = targetMainShove.GetComponent<Shove>();
+                if (grayComp != null) grayComp.Color = fullStashShove.TargetColor;
             }
         }
 
