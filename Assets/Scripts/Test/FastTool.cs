@@ -1,14 +1,15 @@
 using Sirenix.OdinInspector;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 
 public class FastTool : MonoBehaviour
 {
     [Button]
-    public static void AddSphereCollidersToVisibleChildren()
+    public void AddSphereCollidersToVisibleChildren()
     {
         // Lấy object cha đang chọn trong Hierarchy
-        GameObject parent = Selection.activeGameObject;
+        var parent = transform;
 
         if (parent == null)
         {
@@ -62,4 +63,53 @@ public class FastTool : MonoBehaviour
         }
         Debug.Log("Đã gán Script Ball và Collider thành công!");
     }
+
+    [Button]
+    public void PrepareGrandChildrenBallsOnly()
+    {
+        var grandChildren = GetGrandChildrenOnly();
+        int processed = 0;
+
+        foreach (var go in grandChildren)
+        {
+            if (go == null) continue;
+
+            go.layer = 3;
+
+            if (go.GetComponent<Ball>() == null)
+                go.AddComponent<Ball>();
+
+            if (go.GetComponent<SphereCollider>() == null)
+                go.AddComponent<SphereCollider>();
+
+            processed++;
+        }
+
+        PackBalls pack = GetComponent<PackBalls>();
+        if (pack != null)
+        {
+            pack.balls.Clear();
+            pack.balls.AddRange(grandChildren);
+        }
+
+        Debug.Log($"[FastTool] GrandChildren only: đã xử lý {processed} object (con của con)." +
+                  (pack != null ? $" PackBalls.balls = {pack.balls.Count}." : ""));
+    }
+
+    private List<GameObject> GetGrandChildrenOnly()
+    {
+        List<GameObject> result = new List<GameObject>();
+
+        foreach (Transform child in transform)
+        {
+            foreach (Transform grandChild in child)
+            {
+                result.Add(grandChild.gameObject);
+            }
+        }
+
+        return result;
+    }
+
+
 }
