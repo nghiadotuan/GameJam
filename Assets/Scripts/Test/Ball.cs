@@ -15,8 +15,12 @@ public class Ball : MonoBehaviour
     private ShoveMovement _targetShoveAfterPipe;
     private bool _hasPipeReservation;
     private ColorEnum _sourceColor = ColorEnum.None;
+    private PackBalls _sourcePack;
 
-    public void ExplodeSimple(Vector3 force, ShoveMovement targetShove = null, bool hasPipeReservation = false, ColorEnum sourceColor = ColorEnum.None)
+    public ColorEnum SourceColor => _sourceColor;
+    public PackBalls SourcePack => _sourcePack;
+
+    public void ExplodeSimple(Vector3 force, ShoveMovement targetShove = null, bool hasPipeReservation = false, ColorEnum sourceColor = ColorEnum.None, PackBalls sourcePack = null)
     {
         if (_isExploded) return;
         _isExploded = true;
@@ -24,6 +28,7 @@ public class Ball : MonoBehaviour
         _targetShoveAfterPipe = targetShove;
         _hasPipeReservation = hasPipeReservation;
         _sourceColor = sourceColor;
+        _sourcePack = sourcePack;
 
         transform.SetParent(null, true);
 
@@ -286,7 +291,7 @@ public class Ball : MonoBehaviour
                 transform.SetParent(endTarget); // Làm con trực tiếp của cái transform cục bộ luôn để cứng ngắt
                 transform.localPosition = Vector3.zero;
 
-                _assignedShove.ReceiveBall();
+                _assignedShove.ReceiveBall(this);
             }
             else if (_assignedShove.PendingBallCount > 0)
             {
@@ -297,6 +302,12 @@ public class Ball : MonoBehaviour
         {
             ReleasePipeReservation();
             Debug.LogWarning("Ball đi hết ống nhưng chưa tìm được slot bắn phù hợp trong thời gian chờ.");
+
+            if (GameController.Instance != null)
+            {
+                GameController.Instance.EvaluateLoseConditionForColor(_sourceColor,
+                    $"Ball={name} khong tim thay shove/slot phu hop truoc khi ban.");
+            }
         }
     }
 
@@ -316,8 +327,15 @@ public class Ball : MonoBehaviour
                 if (s.SlotColor != _sourceColor) continue;
             }
 
+            if (!s.CanAcceptBall(_sourceColor, _sourcePack)) continue;
+
             if (s.PendingBallCount + s.CurrentBallCount < s.NumBallFull)
             {
+                if (!s.TryLockForBall(_sourceColor, _sourcePack))
+                {
+                    continue;
+                }
+
                 slot = s;
                 return true;
             }
@@ -361,7 +379,7 @@ public class Ball : MonoBehaviour
         {
             foreach (var s in shove.GetComponentsInChildren<SmallShove>())
             {
-                if (s != null && s.SlotColor == _sourceColor && s.NumBallFull > 0)
+                if (s != null && s.NumBallFull > 0 && s.CanAcceptBall(_sourceColor, _sourcePack))
                 {
                     return true;
                 }
@@ -441,7 +459,7 @@ public class Ball : MonoBehaviour
         {
             transform.SetParent(endTarget);
             transform.localPosition = Vector3.zero;
-            _assignedShove.ReceiveBall();
+            _assignedShove.ReceiveBall(this);
         }
     }
 }

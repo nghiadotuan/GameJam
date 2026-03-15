@@ -215,9 +215,12 @@ public class GameController : MonoBehaviour
 
                     foreach (var s in shove.GetComponentsInChildren<SmallShove>())
                     {
-                        if (s.NumBallFull > 0) hasCapacitySet = true;
-                        totalCapacity += s.NumBallFull;
-                        totalBallsInIt += s.CurrentBallCount + s.PendingBallCount;
+                        if (s.NumBallFull > 0 && s.SlotPackRef == pack) hasCapacitySet = true;
+                        if (s.SlotPackRef == pack)
+                        {
+                            totalCapacity += s.NumBallFull;
+                            totalBallsInIt += s.CurrentBallCount + s.PendingBallCount;
+                        }
                     }
                     totalBallsInIt += shove.InPipeBallCount;
 
@@ -246,7 +249,7 @@ public class GameController : MonoBehaviour
                 bool hasEmptySmallShove = false;
                 foreach (var s in shove.GetComponentsInChildren<SmallShove>())
                 {
-                    if (s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0)
+                    if (s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0 && s.SlotColor == ColorEnum.None && s.SlotPackRef == null)
                     {
                         hasEmptySmallShove = true;
                         break;
@@ -274,7 +277,7 @@ public class GameController : MonoBehaviour
                 foreach (var s in stash.GetComponentsInChildren<SmallShove>())
                 {
                     if (s == null) continue;
-                    if (s.SlotColor == pack.colorIndex && s.NumBallFull > 0 && (s.CurrentBallCount + s.PendingBallCount) < s.NumBallFull)
+                    if (s.SlotColor == pack.colorIndex && s.SlotPackRef == pack && s.NumBallFull > 0 && (s.CurrentBallCount + s.PendingBallCount) < s.NumBallFull)
                     {
                         hasSameColorCapacity = true;
                         break;
@@ -299,7 +302,7 @@ public class GameController : MonoBehaviour
                 bool hasEmptySmallShove = false;
                 foreach (var s in stash.GetComponentsInChildren<SmallShove>())
                 {
-                    if (s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0 && s.SlotColor == ColorEnum.None)
+                    if (s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0 && s.SlotColor == ColorEnum.None && s.SlotPackRef == null)
                     {
                         hasEmptySmallShove = true;
                         break;
@@ -357,7 +360,7 @@ public class GameController : MonoBehaviour
                 bool hasEmptySmallShove = false;
                 foreach (var s in stash.GetComponentsInChildren<SmallShove>())
                 {
-                    if (s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0 && s.SlotColor == ColorEnum.None)
+                    if (s.NumBallFull == 0 && s.CurrentBallCount == 0 && s.PendingBallCount == 0 && s.SlotColor == ColorEnum.None && s.SlotPackRef == null)
                     {
                         hasEmptySmallShove = true;
                         break;
@@ -380,7 +383,7 @@ public class GameController : MonoBehaviour
             SmallShove targetSmallShove = null;
             foreach (var ss in smallShoves)
             {
-                if (ss.NumBallFull == 0 && ss.CurrentBallCount == 0 && ss.PendingBallCount == 0 && ss.SlotColor == ColorEnum.None)
+                if (ss.NumBallFull == 0 && ss.CurrentBallCount == 0 && ss.PendingBallCount == 0 && ss.SlotColor == ColorEnum.None && ss.SlotPackRef == null)
                 {
                     targetSmallShove = ss;
                     break;
@@ -392,6 +395,7 @@ public class GameController : MonoBehaviour
                 int packCapacity = sortedBalls.Count;
                 targetSmallShove.NumBallFull = packCapacity;
                 targetSmallShove.SlotColor = pack.colorIndex;
+                targetSmallShove.SlotPackRef = pack;
 
                 if (targetSmallShove.NumBallFull > 0 && targetSmallShove.NumBallFull <= targetSmallShove.ListPosBall.Count)
                 {
@@ -445,7 +449,7 @@ public class GameController : MonoBehaviour
                 }
 
                 // Chỉ gán xe mục tiêu ở đây; slot SmallShove sẽ được chọn khi bóng đi hết ống.
-                b.ExplodeSimple(finalForce, targetShove, hasPipeReservation, pack.colorIndex);
+                b.ExplodeSimple(finalForce, targetShove, hasPipeReservation, pack.colorIndex, pack);
 
                 if (index % 3 == 0)
                     await UniTask.Yield();
@@ -663,6 +667,8 @@ public class GameController : MonoBehaviour
             {
                 int cap = baseCap + (i == mainSmallShoves.Length - 1 ? remainder : 0);
                 mainSmallShoves[i].NumBallFull = cap;
+                mainSmallShoves[i].SlotColor = transferColor;
+                mainSmallShoves[i].SlotPackRef = sourceStashSmallShove.SlotPackRef;
                 mainSmallShoves[i].CurrentBallCount = 0;
                 mainSmallShoves[i].PendingBallCount = 0; 
                 
