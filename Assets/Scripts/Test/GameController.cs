@@ -200,7 +200,7 @@ public class GameController : MonoBehaviour
         // 1. ƯU TIÊN 1: TÌM SHOVE ĐANG CHÚA CÙNG MÀU VÀ CÒN CHỖ TRỐNG (TRÊN BĂNG CHUYỀN HOẶC STASH)
         if (ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
         {
-            int maxShovesToCheck = Mathf.Min(2, ShoveContainer.Instance.shoveList.Count);
+            int maxShovesToCheck = Mathf.Min(1, ShoveContainer.Instance.shoveList.Count);
             for (int i = 0; i < maxShovesToCheck; i++)
             {
                 var shove = ShoveContainer.Instance.shoveList[i];
@@ -236,7 +236,7 @@ public class GameController : MonoBehaviour
         // thì pack này sẽ gán capacity cho đúng 1 SmallShove trống đó.
         if (targetShove == null && ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
         {
-            int maxShovesToCheck = Mathf.Min(2, ShoveContainer.Instance.shoveList.Count);
+            int maxShovesToCheck = Mathf.Min(1, ShoveContainer.Instance.shoveList.Count);
             for (int i = 0; i < maxShovesToCheck; i++)
             {
                 var shove = ShoveContainer.Instance.shoveList[i];
@@ -324,7 +324,7 @@ public class GameController : MonoBehaviour
         // 2. NẾU KHÔNG CÓ XE NÀO ĐỌC DỞ CÒN CHỖ, TÌM XE TRỐNG TRÊN BĂNG CHUYỀN (Cùng màu gốc)
         if (targetShove == null && ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
         {
-            int maxShovesToCheck = Mathf.Min(2, ShoveContainer.Instance.shoveList.Count);
+            int maxShovesToCheck = Mathf.Min(1, ShoveContainer.Instance.shoveList.Count);
             for (int i = 0; i < maxShovesToCheck; i++)
             {
                 var shove = ShoveContainer.Instance.shoveList[i];
@@ -511,7 +511,7 @@ public class GameController : MonoBehaviour
         if (FrontTwoShovesContainColor(ballColor)) return;
 
         _hasLoggedLose = true;
-        Debug.Log($"LOSE! BallColor={ballColor} | Het stash shove phu hop va 2 shove dau khong trung mau. {context}");
+        Debug.Log($"LOSE! BallColor={ballColor} | Het stash shove phu hop va shove dau khong trung mau. {context}");
         if (losePopup != null) losePopup.SetActive(true);
     }
 
@@ -561,7 +561,7 @@ public class GameController : MonoBehaviour
             return false;
         }
 
-        int maxCheck = Mathf.Min(2, ShoveContainer.Instance.shoveList.Count);
+        int maxCheck = Mathf.Min(1, ShoveContainer.Instance.shoveList.Count);
         for (int i = 0; i < maxCheck; i++)
         {
             var shove = ShoveContainer.Instance.shoveList[i];
@@ -614,12 +614,12 @@ public class GameController : MonoBehaviour
 
         if (fullStashShove == null) return;
 
-        // 2. Nếu có Stash FULL, tìm trong 2 xe đầu băng chuyền:
+        // 2. Nếu có Stash FULL, tìm trong xe đầu băng chuyền:
         //    Ưu tiên 1: xe trống CÙNG MÀU với stash
         //    Ưu tiên 2: xe trống MÀU XÁM (None) → gán màu stash cho nó
         if (ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
         {
-            int maxShovesToCheck = Mathf.Min(2, ShoveContainer.Instance.shoveList.Count);
+            int maxShovesToCheck = Mathf.Min(1, ShoveContainer.Instance.shoveList.Count);
             ShoveMovement grayFallback = null;
 
             for (int i = 0; i < maxShovesToCheck; i++)

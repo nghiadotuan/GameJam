@@ -329,7 +329,7 @@ public class Ball : MonoBehaviour
 
         if (ShoveContainer.Instance != null && ShoveContainer.Instance.shoveList.Count > 0)
         {
-            int maxShovesToCheck = Mathf.Min(2, ShoveContainer.Instance.shoveList.Count);
+            int maxShovesToCheck = Mathf.Min(1, ShoveContainer.Instance.shoveList.Count);
             for (int i = 0; i < maxShovesToCheck; i++)
             {
                 ShoveMovement candidate = ShoveContainer.Instance.shoveList[i];
